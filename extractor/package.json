@@ -1,0 +1,26 @@
+{
+  "name": "vidsrc-extractor",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "bin": {
+    "vidsrc-extractor": "dist/src/cli.js",
+    "vidsrc-tui": "dist/src/tui.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test dist/test/index.test.js",
+    "tui": "npm run build && node dist/src/tui.js"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.1.0",
+    "@supabase/supabase-js": "^2.96.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

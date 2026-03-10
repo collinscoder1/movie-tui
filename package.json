@@ -1,0 +1,11 @@
+{
+  "name": "movie_extractor",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "test": "test.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
