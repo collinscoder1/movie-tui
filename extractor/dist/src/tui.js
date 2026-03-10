@@ -78,7 +78,6 @@ async function descriptorFromParsedUrl(parsed, originalUrl) {
     const descriptor = {
         type: parsed.type,
         tmdbId: result.tmdbId,
-        imdbId: parsed.imdbId,
         season: parsed.season,
         episode: parsed.episode,
         description: parsed.type === 'movie'
@@ -137,15 +136,10 @@ async function descriptorsFromNameSearch() {
 async function descriptorsForTmdbSelection(type, tmdbId) {
     if (type === 'movie') {
         const details = await fetchTmdbMovie(tmdbId);
-        const imdbId = details.imdb_id;
-        if (!imdbId) {
-            throw new Error('Movie does not expose an IMDb identifier.');
-        }
         return [
             {
                 type: 'movie',
                 tmdbId,
-                imdbId,
                 season: null,
                 episode: null,
                 description: `${details.title} (movie)`
@@ -153,10 +147,6 @@ async function descriptorsForTmdbSelection(type, tmdbId) {
         ];
     }
     const show = await fetchTmdbShow(tmdbId);
-    const imdbId = show.imdb_id;
-    if (!imdbId) {
-        throw new Error('TV show does not expose an IMDb identifier.');
-    }
     const seasonNumber = await chooseSeason(show.seasons);
     const seasonData = await fetchSeasonDetails(tmdbId, seasonNumber);
     const availableEpisodes = seasonData.episodes.map((ep) => ep.episode_number);
@@ -164,7 +154,6 @@ async function descriptorsForTmdbSelection(type, tmdbId) {
     return episodes.map((episodeNumber) => ({
         type: 'tv',
         tmdbId,
-        imdbId,
         season: seasonNumber,
         episode: episodeNumber,
         description: `${show.name} S${seasonNumber}E${episodeNumber}`

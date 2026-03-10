@@ -4,7 +4,7 @@ import { extractVidsrcLinks, helpers } from '../src/extractor.js';
 test('parse a tv vidSrc URL', () => {
     console.log('Parsing example tv URL');
     const parsed = helpers.parseVidsrcUrl('https://dl.vidsrc.vip/tv/tt0460637/1/8');
-    assert.deepStrictEqual(parsed, { type: 'tv', imdbId: 'tt0460637', season: 1, episode: 8 });
+    assert.deepStrictEqual(parsed, { type: 'tv', id: 'tt0460637', idType: 'imdb', season: 1, episode: 8 });
 });
 test('formatSize converts bytes', () => {
     console.log('Formatting 1024 bytes into human readable text');

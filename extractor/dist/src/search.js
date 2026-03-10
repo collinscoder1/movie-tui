@@ -44,14 +44,19 @@ export async function fetchTmdbMovie(id) {
     if (!response.ok) {
         throw new Error('Failed to fetch movie details.');
     }
-    return response.json();
+    const data = await response.json();
+    return { title: data.title };
 }
 export async function fetchTmdbShow(id) {
     const response = await fetch(`${TMDB_BASE_URL}/tv/${id}?api_key=${TMDB_API_KEY}&language=en-US`);
     if (!response.ok) {
         throw new Error('Failed to fetch show details.');
     }
-    return response.json();
+    const data = await response.json();
+    return {
+        name: data.name,
+        seasons: data.seasons || []
+    };
 }
 export async function fetchSeasonDetails(id, seasonNumber) {
     const response = await fetch(`${TMDB_BASE_URL}/tv/${id}/season/${seasonNumber}?api_key=${TMDB_API_KEY}&language=en-US`);
@@ -62,7 +67,7 @@ export async function fetchSeasonDetails(id, seasonNumber) {
 }
 export function buildVidsrcUrl(descriptor) {
     if (descriptor.type === 'movie') {
-        return `https://dl.vidsrc.vip/movie/${descriptor.imdbId}`;
+        return `https://dl.vidsrc.vip/movie/tmdb-${descriptor.tmdbId}`;
     }
-    return `https://dl.vidsrc.vip/tv/${descriptor.imdbId}/${descriptor.season}/${descriptor.episode}`;
+    return `https://dl.vidsrc.vip/tv/tmdb-${descriptor.tmdbId}/${descriptor.season}/${descriptor.episode}`;
 }

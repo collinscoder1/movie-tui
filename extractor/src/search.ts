@@ -6,7 +6,6 @@ const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 export interface EpisodeDescriptor {
   type: VidSrcType;
   tmdbId: string;
-  imdbId: string;
   season: number | null;
   episode: number | null;
   description: string;
@@ -61,24 +60,28 @@ export async function searchTmdb(type: VidSrcType, query: string): Promise<Searc
   }));
 }
 
-export async function fetchTmdbMovie(id: string): Promise<{ title: string; imdb_id: string | null }> {
+export async function fetchTmdbMovie(id: string): Promise<{ title: string }> {
   const response = await fetch(`${TMDB_BASE_URL}/movie/${id}?api_key=${TMDB_API_KEY}&language=en-US`);
   if (!response.ok) {
     throw new Error('Failed to fetch movie details.');
   }
-  return response.json();
+  const data = await response.json();
+  return { title: data.title };
 }
 
 export async function fetchTmdbShow(id: string): Promise<{
   name: string;
-  imdb_id: string | null;
   seasons: Array<{ season_number: number; episode_count?: number }>;
 }> {
   const response = await fetch(`${TMDB_BASE_URL}/tv/${id}?api_key=${TMDB_API_KEY}&language=en-US`);
   if (!response.ok) {
     throw new Error('Failed to fetch show details.');
   }
-  return response.json();
+  const data = await response.json();
+  return {
+    name: data.name,
+    seasons: data.seasons || []
+  };
 }
 
 export async function fetchSeasonDetails(id: string, seasonNumber: number): Promise<{
@@ -93,7 +96,7 @@ export async function fetchSeasonDetails(id: string, seasonNumber: number): Prom
 
 export function buildVidsrcUrl(descriptor: EpisodeDescriptor): string {
   if (descriptor.type === 'movie') {
-    return `https://dl.vidsrc.vip/movie/${descriptor.imdbId}`;
+    return `https://dl.vidsrc.vip/movie/tmdb-${descriptor.tmdbId}`;
   }
-  return `https://dl.vidsrc.vip/tv/${descriptor.imdbId}/${descriptor.season}/${descriptor.episode}`;
+  return `https://dl.vidsrc.vip/tv/tmdb-${descriptor.tmdbId}/${descriptor.season}/${descriptor.episode}`;
 }

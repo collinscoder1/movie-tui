@@ -10,7 +10,8 @@ export type VidSrcType = 'movie' | 'tv';
 
 interface ParsedInput {
   type: VidSrcType;
-  imdbId: string;
+  id: string;
+  idType: 'imdb' | 'tmdb';
   season: number | null;
   episode: number | null;
 }
@@ -101,20 +102,26 @@ export function parseVidsrcUrl(value: string): ParsedInput {
   const type = segments[0];
   if (type === 'movie') {
     if (!segments[1]) {
-      throw new Error('Missing IMDb identifier for movie');
+      throw new Error('Missing identifier for movie');
     }
-    return { type: 'movie', imdbId: segments[1], season: null, episode: null };
+    const idSegment = segments[1];
+    const isTmdb = idSegment.startsWith('tmdb-');
+    const id = isTmdb ? idSegment.slice(5) : idSegment;
+    return { type: 'movie', id, idType: isTmdb ? 'tmdb' : 'imdb', season: null, episode: null };
   }
   if (type === 'tv') {
     if (!segments[1] || !segments[2] || !segments[3]) {
-      throw new Error('TV URL must include IMDb id, season and episode');
+      throw new Error('TV URL must include id, season and episode');
     }
+    const idSegment = segments[1];
+    const isTmdb = idSegment.startsWith('tmdb-');
+    const id = isTmdb ? idSegment.slice(5) : idSegment;
     const season = Number.parseInt(segments[2], 10);
     const episode = Number.parseInt(segments[3], 10);
     if (!Number.isFinite(season) || !Number.isFinite(episode)) {
       throw new Error('Season and episode must be numeric');
     }
-    return { type: 'tv', imdbId: segments[1], season, episode };
+    return { type: 'tv', id, idType: isTmdb ? 'tmdb' : 'imdb', season, episode };
   }
   throw new Error('Unsupported vidSrc path: ' + url.pathname);
 }
@@ -142,15 +149,19 @@ function buildProxyUrl(url: string, friendlyName: string): string {
 }
 
 async function resolveTmdbId(
-  imdbId: string,
+  id: string,
+  idType: 'imdb' | 'tmdb',
   type: VidSrcType,
   fetchImpl: typeof fetch = globalThis.fetch
 ): Promise<string | null> {
-  if (!imdbId.startsWith('tt')) {
+  if (idType === 'tmdb') {
+    return id;
+  }
+  if (!id.startsWith('tt')) {
     return null;
   }
   const response = await fetchImpl(
-    `${TMDB_BASE_URL}/find/${imdbId}?api_key=${TMDB_API_KEY}&language=en-US&external_source=imdb_id`
+    `${TMDB_BASE_URL}/find/${id}?api_key=${TMDB_API_KEY}&language=en-US&external_source=imdb_id`
   );
   const payload = await response.json();
   if (type === 'movie') {
@@ -310,7 +321,7 @@ export async function extractVidsrcLinks(
   options: { fetchImpl?: typeof fetch; supabaseClient?: SupabaseClient } = {}
 ): Promise<ExtractionResult> {
   const parsed = parseVidsrcUrl(input);
-  const tmdbId = await resolveTmdbId(parsed.imdbId, parsed.type, options.fetchImpl);
+  const tmdbId = await resolveTmdbId(parsed.id, parsed.idType, parsed.type, options.fetchImpl);
   if (!tmdbId) {
     throw new Error('Unable to resolve TMDb identifier');
   }
@@ -320,7 +331,7 @@ export async function extractVidsrcLinks(
   } else {
     metadata = await fetchTvMetadata(tmdbId, parsed.season ?? 0, parsed.episode ?? 0, options.fetchImpl);
   }
-  const friendlyName = buildFriendlyName({ ...parsed, ...metadata });
+  const friendlyName = buildFriendlyName({ type: parsed.type, id: parsed.id, idType: parsed.idType, season: parsed.season, episode: parsed.episode, ...metadata });
   const downloadPayload = await invokeDownloadProxy(
     {
       type: parsed.type,
