@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Download Metadata Logger",
+  "version": "1.0.0",
+  "description": "Intercepts browser downloads and logs the metadata emitted by the downloads API.",
+  "permissions": ["downloads", "storage", "webRequest"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Download logger",
+    "default_popup": "popup.html"
+  }
+}

@@ -1,7 +1,7 @@
 import { intro, select, text, confirm, spinner, outro, isCancel } from '@clack/prompts';
 import { extractVidsrcLinks, helpers } from './extractor.js';
 import { buildVidsrcUrl, fetchSeasonDetails, fetchTmdbMovie, fetchTmdbShow, parseEpisodeInput, searchTmdb } from './search.js';
-const DOWNLOAD_MANAGER_BASE = 'http://localhost:15151';
+import { sendToDownloadManager, DOWNLOAD_MANAGER_BASE } from './download-manager.js';
 async function main() {
     intro('vidsrc download manager TUI');
     try {
@@ -41,7 +41,7 @@ async function main() {
             const loader = spinner();
             loader.start('Queueing download');
             try {
-                await sendToDownloadManager(entry.url, downloadPage, queueId, descriptor.description);
+                await sendToDownloadManager(entry, downloadPage, queueId, descriptor.description);
                 loader.stop('Queued');
             }
             catch (error) {
@@ -263,28 +263,4 @@ async function selectQueue() {
         return null;
     }
 }
-async function sendToDownloadManager(link, downloadPage, queueId, name) {
-    const payload = {
-        downloadSource: {
-            link,
-            downloadPage
-        }
-    };
-    if (queueId !== null) {
-        payload.queueId = queueId;
-    }
-    if (name) {
-        payload.name = name;
-    }
-    const response = await fetch(`${DOWNLOAD_MANAGER_BASE}/start-headless-download`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-        throw new Error(`Download manager returned ${response.status}`);
-    }
-}
-if (import.meta.main) {
-    main();
-}
+main();

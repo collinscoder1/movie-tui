@@ -10,8 +10,8 @@ import {
   parseEpisodeInput,
   searchTmdb
 } from './search.js';
+import { sendToDownloadManager, DOWNLOAD_MANAGER_BASE } from './download-manager.js';
 
-const DOWNLOAD_MANAGER_BASE = 'http://localhost:15151';
 
 interface QualityChoice {
   format: string;
@@ -61,7 +61,7 @@ async function main(): Promise<void> {
       const loader = spinner();
       loader.start('Queueing download');
       try {
-        await sendToDownloadManager(entry.url, downloadPage, queueId, descriptor.description);
+        await sendToDownloadManager(entry, downloadPage, queueId, descriptor.description);
         loader.stop('Queued');
       } catch (error) {
         loader.stop('Failed');
@@ -293,29 +293,4 @@ async function selectQueue(): Promise<number | null> {
   }
 }
 
-async function sendToDownloadManager(link: string, downloadPage: string, queueId: number | null, name: string): Promise<void> {
-  const payload: Record<string, unknown> = {
-    downloadSource: {
-      link,
-      downloadPage
-    }
-  };
-  if (queueId !== null) {
-    payload.queueId = queueId;
-  }
-  if (name) {
-    payload.name = name;
-  }
-  const response = await fetch(`${DOWNLOAD_MANAGER_BASE}/start-headless-download`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) {
-    throw new Error(`Download manager returned ${response.status}`);
-  }
-}
-
-if (import.meta.main) {
-  main();
-}
+main();
