@@ -80,7 +80,7 @@ export async function sendToDownloadManager(
     ],
     options: {
       silentAdd: true,
-      silentStart: true
+      silentStart: false
     }
   };
 

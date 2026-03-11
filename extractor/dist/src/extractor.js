@@ -153,7 +153,7 @@ async function invokeDownloadProxy(payload, friendlyName) {
             }
             const sizeRaw = typeof stream.size === 'number' ? stream.size : Number(stream.size);
             downloads.push({
-                resolution: stream.resolutions || stream.resolution || null,
+                resolution: stream.resolutions ? String(stream.resolutions) : stream.resolution ? String(stream.resolution) : null,
                 format: stream.format || 'MP4',
                 size: formatSize(sizeRaw),
                 url: buildProxyUrl(stream.url, friendlyName)
@@ -167,7 +167,7 @@ async function invokeDownloadProxy(payload, friendlyName) {
             }
             const sizeRaw = typeof entry.size === 'number' ? entry.size : Number(entry.size);
             downloads.push({
-                resolution: entry.resolution ?? null,
+                resolution: entry.resolution ? String(entry.resolution) : null,
                 format: 'MP4',
                 size: formatSize(sizeRaw),
                 url: buildProxyUrl(entry.url, friendlyName)

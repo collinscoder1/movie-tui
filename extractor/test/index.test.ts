@@ -63,7 +63,9 @@ test('example URLs produce grouped downloads and subtitles', async () => {
               extractData: {
                 data: {
                   streams: [
-                    { size: 1024, url: 'http://media/1.mp4', resolutions: '1080p' }
+                    { size: 1024, url: 'http://media/1.mp4', resolutions: '1080p' },
+                    { size: 512, url: 'http://media/2.mp4', resolution: 720 },
+                    { size: 256, url: 'http://media/3.mp4', resolutions: 480 }
                   ],
                   captions: [
                     { lanName: 'English', size: 64, url: 'http://subs/eng.vtt' }
@@ -87,16 +89,31 @@ test('example URLs produce grouped downloads and subtitles', async () => {
   ];
 
   for (const entry of urls) {
-    console.log('Testing extraction for', entry.url);
-    const result = await extractVidsrcLinks(entry.url, {
-      fetchImpl,
-      supabaseClient: fakeSupabase as any
-    });
-    console.log('Result type', result.type, 'TMDb', result.tmdbId);
-    assert.strictEqual(result.type, entry.expectedType);
-    assert.strictEqual(result.metadata.title, entry.expectedTitle);
-    assert.ok(Object.keys(result.downloads).length > 0, 'Downloads should have at least one format');
-    console.log('Downloads buckets available:', Object.keys(result.downloads).join(', '));
-    assert.strictEqual(result.subtitles.length, 1);
+  console.log('Testing extraction for', entry.url);
+  const result = await extractVidsrcLinks(entry.url, {
+    fetchImpl,
+    supabaseClient: fakeSupabase as any
+  });
+  console.log('Result type', result.type, 'TMDb', result.tmdbId);
+  assert.strictEqual(result.type, entry.expectedType);
+  assert.strictEqual(result.metadata.title, entry.expectedTitle);
+  assert.ok(Object.keys(result.downloads).length > 0, 'Downloads should have at least one format');
+  console.log('Downloads buckets available:', Object.keys(result.downloads).join(', '));
+
+  // Verify all resolutions are strings (not numbers)
+  const allDownloads = Object.values(result.downloads).flat();
+  for (const download of allDownloads) {
+    if (download.resolution !== null) {
+      assert.strictEqual(typeof download.resolution, 'string', `Resolution should be string, got ${typeof download.resolution}`);
+    }
   }
+  console.log('All resolutions are properly typed as strings');
+
+  // Verify we have different resolutions
+  const resolutions = allDownloads.map(d => d.resolution).filter(Boolean);
+  assert.ok(resolutions.length > 0, 'Should have at least one resolution');
+  console.log('Available resolutions:', resolutions.join(', '));
+
+  assert.strictEqual(result.subtitles.length, 1);
+}
 });
