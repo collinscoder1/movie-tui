@@ -1,4 +1,5 @@
 import type { DownloadEntry } from './extractor.js';
+import { homedir } from 'node:os';
 
 export const DOWNLOAD_MANAGER_BASE = 'http://localhost:15151';
 const DOWNLOAD_REFERER = 'https://dl.vidsrc.vip/';
@@ -17,23 +18,16 @@ export function buildDownloadHeaders(): Record<string, string> {
   };
 }
 
-interface DownloadRequestItem {
-  link: string;
-  downloadPage: string | null;
-  headers: Record<string, string> | null;
-  description: string | null;
-  suggestedName: string | null;
-  type: 'hls' | 'http';
-}
-
-interface DownloadRequestOptions {
-  silentAdd: boolean;
-  silentStart: boolean;
-}
-
-interface AddDownloadRequest {
-  items: DownloadRequestItem[];
-  options: DownloadRequestOptions;
+interface HeadlessDownloadRequest {
+  downloadSource: {
+    link: string;
+    headers: Record<string, string>;
+    downloadPage: string | null;
+    suggestedName: string | null;
+  };
+  folder?: string | null;
+  name?: string | null;
+  queueId?: number | null;
 }
 
 function normalizeFileType(format: string | null | undefined): string {
@@ -61,30 +55,52 @@ function buildFilename(name: string, format: string | null | undefined): string 
   return `${name}${extensionWithDot}`;
 }
 
+function expandTilde(path: string): string {
+  if (path.startsWith('~/')) {
+    return path.replace('~', homedir());
+  }
+  if (path === '~') {
+    return homedir();
+  }
+  return path;
+}
+
 export async function sendToDownloadManager(
   entry: DownloadEntry,
   downloadPage: string,
   queueId: number | null,
-  name: string
+  name: string,
+  baseFolder?: string | null,
+  isSubtitle?: boolean
 ): Promise<void> {
-  const request: AddDownloadRequest = {
-    items: [
-      {
-        link: entry.url,
-        downloadPage: downloadPage,
-        headers: buildDownloadHeaders(),
-        description: name,
-        suggestedName: buildFilename(name, entry.format),
-        type: 'http'
-      }
-    ],
-    options: {
-      silentAdd: true,
-      silentStart: false
+  // Build folder path (expand tilde to home directory)
+  let folder: string | undefined = undefined;
+  if (baseFolder) {
+    const expandedPath = expandTilde(baseFolder);
+    if (isSubtitle) {
+      folder = `${expandedPath}/subs`;
+    } else {
+      folder = expandedPath;
+    }
+  }
+
+  const request: HeadlessDownloadRequest = {
+    downloadSource: {
+      link: entry.url,
+      headers: buildDownloadHeaders(),
+      downloadPage: downloadPage,
+      suggestedName: buildFilename(name, entry.format)
     }
   };
 
-  const response = await fetch(`${DOWNLOAD_MANAGER_BASE}/add`, {
+  if (folder) {
+    request.folder = folder;
+  }
+  if (queueId !== null) {
+    request.queueId = queueId;
+  }
+
+  const response = await fetch(`${DOWNLOAD_MANAGER_BASE}/start-headless-download`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request)

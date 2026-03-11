@@ -39,13 +39,17 @@ async function main() {
             console.log(`  Subtitle: ${prefs.subtitleLanguage ?? 'none'}`);
             console.log(`  Format: ${prefs.qualityPreference.format}`);
             console.log(`  Resolution: ${prefs.qualityPreference.resolution ?? 'auto'}`);
+            if (effectiveConfig.downloadPath) {
+                console.log(`  Download path: ${effectiveConfig.downloadPath}`);
+            }
         }
         let successCount = 0;
         let failCount = 0;
         let skipCount = 0;
+        const baseFolder = effectiveConfig?.downloadPath;
         for (const descriptor of descriptors) {
             console.log(`\nProcessing ${descriptor.description} ...`);
-            const result = await processDescriptor(descriptor, queueId, prefs);
+            const result = await processDescriptor(descriptor, queueId, prefs, baseFolder);
             if (result === 'success')
                 successCount++;
             else if (result === 'fail')

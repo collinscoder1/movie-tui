@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 export const DOWNLOAD_MANAGER_BASE = 'http://localhost:15151';
 const DOWNLOAD_REFERER = 'https://dl.vidsrc.vip/';
 const DOWNLOAD_USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
@@ -35,24 +36,42 @@ function buildFilename(name, format) {
     }
     return `${name}${extensionWithDot}`;
 }
-export async function sendToDownloadManager(entry, downloadPage, queueId, name) {
+function expandTilde(path) {
+    if (path.startsWith('~/')) {
+        return path.replace('~', homedir());
+    }
+    if (path === '~') {
+        return homedir();
+    }
+    return path;
+}
+export async function sendToDownloadManager(entry, downloadPage, queueId, name, baseFolder, isSubtitle) {
+    // Build folder path (expand tilde to home directory)
+    let folder = undefined;
+    if (baseFolder) {
+        const expandedPath = expandTilde(baseFolder);
+        if (isSubtitle) {
+            folder = `${expandedPath}/subs`;
+        }
+        else {
+            folder = expandedPath;
+        }
+    }
     const request = {
-        items: [
-            {
-                link: entry.url,
-                downloadPage: downloadPage,
-                headers: buildDownloadHeaders(),
-                description: name,
-                suggestedName: buildFilename(name, entry.format),
-                type: 'http'
-            }
-        ],
-        options: {
-            silentAdd: true,
-            silentStart: false
+        downloadSource: {
+            link: entry.url,
+            headers: buildDownloadHeaders(),
+            downloadPage: downloadPage,
+            suggestedName: buildFilename(name, entry.format)
         }
     };
-    const response = await fetch(`${DOWNLOAD_MANAGER_BASE}/add`, {
+    if (folder) {
+        request.folder = folder;
+    }
+    if (queueId !== null) {
+        request.queueId = queueId;
+    }
+    const response = await fetch(`${DOWNLOAD_MANAGER_BASE}/start-headless-download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request)

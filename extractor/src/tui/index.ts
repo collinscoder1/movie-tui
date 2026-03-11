@@ -43,25 +43,30 @@ async function main(): Promise<void> {
     // Config handling
     const { prefs, effectiveConfig } = await handleConfiguration();
 
-    // Show what we're using
-    if (effectiveConfig) {
-      console.log(`\nUsing configuration: ${effectiveConfig.name}`);
-      console.log(`  Subtitle: ${prefs.subtitleLanguage ?? 'none'}`);
-      console.log(`  Format: ${prefs.qualityPreference.format}`);
-      console.log(`  Resolution: ${prefs.qualityPreference.resolution ?? 'auto'}`);
+  // Show what we're using
+  if (effectiveConfig) {
+    console.log(`\nUsing configuration: ${effectiveConfig.name}`);
+    console.log(`  Subtitle: ${prefs.subtitleLanguage ?? 'none'}`);
+    console.log(`  Format: ${prefs.qualityPreference.format}`);
+    console.log(`  Resolution: ${prefs.qualityPreference.resolution ?? 'auto'}`);
+    if (effectiveConfig.downloadPath) {
+      console.log(`  Download path: ${effectiveConfig.downloadPath}`);
     }
+  }
 
     let successCount = 0;
     let failCount = 0;
     let skipCount = 0;
 
-    for (const descriptor of descriptors) {
-      console.log(`\nProcessing ${descriptor.description} ...`);
-      const result = await processDescriptor(descriptor, queueId, prefs);
-      if (result === 'success') successCount++;
-      else if (result === 'fail') failCount++;
-      else skipCount++;
-    }
+  const baseFolder = effectiveConfig?.downloadPath;
+
+  for (const descriptor of descriptors) {
+    console.log(`\nProcessing ${descriptor.description} ...`);
+    const result = await processDescriptor(descriptor, queueId, prefs, baseFolder);
+    if (result === 'success') successCount++;
+    else if (result === 'fail') failCount++;
+    else skipCount++;
+  }
 
     console.log(`\n=== Summary: ${successCount} queued, ${failCount} failed, ${skipCount} skipped ===`);
     outro('Download requests submitted.');

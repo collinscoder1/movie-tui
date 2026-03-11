@@ -127,3 +127,29 @@ export async function promptForAvailableQuality(entries: DownloadEntry[]): Promi
   }
   return choice as DownloadEntry;
 }
+
+export async function selectDownloadPath(): Promise<string | null> {
+  const choice = await select({
+    message: 'Configure download path?',
+    options: [
+      { value: null, label: 'Use AB Download Manager default' },
+      { value: 'custom', label: 'Specify custom path' }
+    ]
+  });
+
+  if (isCancel(choice) || choice === null) {
+    return null;
+  }
+
+  const pathInput = await text({
+    message: 'Enter download base path (e.g., /home/user/Downloads):',
+    placeholder: '/home/user/Downloads'
+  });
+
+  if (isCancel(pathInput) || !pathInput) {
+    return null;
+  }
+
+  // Normalize path (ensure no trailing slash)
+  return String(pathInput).trim().replace(/\/$/, '');
+}

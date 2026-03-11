@@ -3,7 +3,16 @@ import { sendToDownloadManager } from '../download-manager.js';
 import { extractVidsrcLinks } from '../extractor.js';
 import { buildVidsrcUrl } from '../search.js';
 import { promptForAvailableQuality } from './prompts.js';
-export async function processDescriptor(descriptor, queueId, prefs) {
+import { validateDownloadPath } from '../config.js';
+export async function processDescriptor(descriptor, queueId, prefs, baseFolder) {
+    // Validate/create base folder if provided
+    if (baseFolder) {
+        const validation = await validateDownloadPath(baseFolder);
+        if (!validation.valid) {
+            console.log(`  Error: Download folder "${baseFolder}" is not accessible: ${validation.error}`);
+            return 'fail';
+        }
+    }
     let result;
     try {
         result = await extractVidsrcLinks(buildVidsrcUrl(descriptor));
@@ -37,7 +46,7 @@ export async function processDescriptor(descriptor, queueId, prefs) {
     const loader = spinner();
     loader.start('Queueing download');
     try {
-        await sendToDownloadManager(entry, downloadPage, queueId, descriptor.description);
+        await sendToDownloadManager(entry, downloadPage, queueId, descriptor.description, baseFolder, false);
         if (prefs.subtitleLanguage) {
             const subtitle = result.subtitles.find((s) => s.lanName === prefs.subtitleLanguage);
             if (subtitle) {
@@ -47,7 +56,7 @@ export async function processDescriptor(descriptor, queueId, prefs) {
                     size: subtitle.size,
                     url: subtitle.url
                 };
-                await sendToDownloadManager(subEntry, downloadPage, queueId, `${descriptor.description} - ${prefs.subtitleLanguage} subtitle`);
+                await sendToDownloadManager(subEntry, downloadPage, queueId, `${descriptor.description} - ${prefs.subtitleLanguage} subtitle`, baseFolder, true);
                 console.log(`  Subtitle (${prefs.subtitleLanguage}) queued`);
             }
             else {

@@ -9,7 +9,7 @@ import {
   configExists,
   Config
 } from '../config.js';
-import { selectSubtitleLanguage, selectQualityPreference } from './prompts.js';
+import { selectSubtitleLanguage, selectQualityPreference, selectDownloadPath } from './prompts.js';
 
 export async function runConfigTui(): Promise<void> {
   intro('Configuration Manager');
@@ -97,6 +97,7 @@ async function createConfig(): Promise<void> {
 
   const subtitleLanguage = await selectSubtitleLanguage();
   const qualityPreference = await selectQualityPreference();
+  const downloadPath = await selectDownloadPath();
 
   const config: Omit<Config, 'name'> = {
     subtitleLanguage,
@@ -104,7 +105,17 @@ async function createConfig(): Promise<void> {
     preferredResolution: qualityPreference.resolution ?? 'auto'
   };
 
-  await saveConfig(name, config);
+  if (downloadPath) {
+    config.downloadPath = downloadPath;
+  }
+
+  try {
+    await saveConfig(name, config);
+  } catch (error) {
+    console.log(`\nError saving configuration: ${error instanceof Error ? error.message : error}`);
+    console.log('Configuration not saved. Please check the download path and try again.');
+    return;
+  }
 
   const isFirstConfig = (await listConfigs()).length === 1;
   if (isFirstConfig) {
@@ -144,6 +155,7 @@ async function editConfig(configNames: string[]): Promise<void> {
 
   const subtitleLanguage = await selectSubtitleLanguage();
   const qualityPreference = await selectQualityPreference();
+  const downloadPath = await selectDownloadPath();
 
   const config: Omit<Config, 'name'> = {
     subtitleLanguage,
@@ -151,8 +163,17 @@ async function editConfig(configNames: string[]): Promise<void> {
     preferredResolution: qualityPreference.resolution ?? 'auto'
   };
 
-  await saveConfig(existing.name, config);
-  console.log(`\nConfiguration "${existing.name}" updated.`);
+  if (downloadPath) {
+    config.downloadPath = downloadPath;
+  }
+
+  try {
+    await saveConfig(existing.name, config);
+    console.log(`\nConfiguration "${existing.name}" updated.`);
+  } catch (error) {
+    console.log(`\nError saving configuration: ${error instanceof Error ? error.message : error}`);
+    console.log('Configuration not updated. Please check the download path and try again.');
+  }
 }
 
 async function deleteConfigPrompt(configNames: string[]): Promise<void> {

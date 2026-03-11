@@ -4,12 +4,23 @@ import { extractVidsrcLinks, ExtractionResult, DownloadEntry } from '../extracto
 import { EpisodeDescriptor, buildVidsrcUrl } from '../search.js';
 import { QualityPreference, UserPreferences } from './types.js';
 import { promptForAvailableQuality } from './prompts.js';
+import { validateDownloadPath } from '../config.js';
 
 export async function processDescriptor(
   descriptor: EpisodeDescriptor,
   queueId: number | null,
-  prefs: UserPreferences
+  prefs: UserPreferences,
+  baseFolder?: string | null
 ): Promise<'success' | 'fail' | 'skip'> {
+  // Validate/create base folder if provided
+  if (baseFolder) {
+    const validation = await validateDownloadPath(baseFolder);
+    if (!validation.valid) {
+      console.log(`  Error: Download folder "${baseFolder}" is not accessible: ${validation.error}`);
+      return 'fail';
+    }
+  }
+
   let result: ExtractionResult;
   try {
     result = await extractVidsrcLinks(buildVidsrcUrl(descriptor));
@@ -42,7 +53,7 @@ export async function processDescriptor(
   const loader = spinner();
   loader.start('Queueing download');
   try {
-    await sendToDownloadManager(entry, downloadPage, queueId, descriptor.description);
+    await sendToDownloadManager(entry, downloadPage, queueId, descriptor.description, baseFolder, false);
 
     if (prefs.subtitleLanguage) {
       const subtitle = result.subtitles.find((s: { lanName: string }) => s.lanName === prefs.subtitleLanguage);
@@ -53,7 +64,7 @@ export async function processDescriptor(
           size: subtitle.size,
           url: subtitle.url
         };
-        await sendToDownloadManager(subEntry, downloadPage, queueId, `${descriptor.description} - ${prefs.subtitleLanguage} subtitle`);
+        await sendToDownloadManager(subEntry, downloadPage, queueId, `${descriptor.description} - ${prefs.subtitleLanguage} subtitle`, baseFolder, true);
         console.log(`  Subtitle (${prefs.subtitleLanguage}) queued`);
       } else {
         console.log(`  Subtitle (${prefs.subtitleLanguage}) not available, skipped`);

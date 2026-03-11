@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, readdir, access, unlink } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, access, unlink, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -22,6 +22,7 @@ export interface Config {
   subtitleLanguage: string | null;
   preferredFormat: string;
   preferredResolution: string;
+  downloadPath?: string;
 }
 
 async function ensureConfigDir(): Promise<void> {
@@ -64,8 +65,39 @@ export async function loadDefaultConfig(): Promise<Config | null> {
   }
 }
 
+export async function validateDownloadPath(path: string): Promise<{ valid: boolean; error?: string }> {
+  try {
+    // Check if path exists
+    const stats = await stat(path);
+    if (!stats.isDirectory()) {
+      return { valid: false, error: 'Path exists but is not a directory' };
+    }
+    return { valid: true };
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      // Path doesn't exist, try to create it
+      try {
+        await mkdir(path, { recursive: true });
+        return { valid: true };
+      } catch (createError: any) {
+        return { valid: false, error: `Failed to create directory: ${createError.message}` };
+      }
+    }
+    return { valid: false, error: error.message };
+  }
+}
+
 export async function saveConfig(name: string, config: Omit<Config, 'name'>): Promise<void> {
   await ensureConfigDir();
+
+  // Validate download path if provided
+  if (config.downloadPath) {
+    const validation = await validateDownloadPath(config.downloadPath);
+    if (!validation.valid) {
+      throw new Error(`Invalid download path "${config.downloadPath}": ${validation.error}`);
+    }
+  }
+
   const path = join(getConfigDir(), `${name}.json`);
   await writeFile(path, JSON.stringify(config, null, 2));
 }
