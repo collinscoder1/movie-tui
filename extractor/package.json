@@ -5,13 +5,15 @@
   "main": "dist/src/index.js",
   "bin": {
     "vidsrc-extractor": "dist/src/cli.js",
-    "vidsrc-tui": "dist/src/tui/index.js"
+    "vidsrc-tui": "dist/src/tui/index.js",
+    "vidsrc-config": "dist/src/tui/config-tui.js"
   },
   "scripts": {
     "build": "tsc",
     "test": "npm run build && node --test dist/test/index.test.js dist/test/download.test.js",
     "test:download": "npm run build && node --test dist/test/download.test.js",
-    "tui": "npm run build && node dist/src/tui/index.js"
+    "tui": "npm run build && node dist/src/tui/index.js",
+    "config": "npm run build && node dist/src/tui/config-tui.js"
   },
   "dependencies": {
     "@clack/prompts": "^1.1.0",
