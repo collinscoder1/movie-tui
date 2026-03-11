@@ -65,22 +65,35 @@ function expandTilde(path: string): string {
   return path;
 }
 
+function sanitizeFolderName(name: string): string {
+  // Remove common suffixes and clean up
+  return name
+    .replace(/ \(movie\)$/i, '')
+    .replace(/[\/\\:*?"<>|]/g, '-')  // Replace invalid filename chars
+    .trim();
+}
+
 export async function sendToDownloadManager(
   entry: DownloadEntry,
   downloadPage: string,
   queueId: number | null,
   name: string,
   baseFolder?: string | null,
-  isSubtitle?: boolean
+  isSubtitle?: boolean,
+  folderName?: string | null
 ): Promise<void> {
   // Build folder path (expand tilde to home directory)
+  // Structure: baseFolder/FolderName/ for videos
+  //            baseFolder/FolderName/subs/ for subtitles
+  // folderName is the series name for TV shows, or movie name for movies
   let folder: string | undefined = undefined;
-  if (baseFolder) {
+  if (baseFolder && folderName) {
     const expandedPath = expandTilde(baseFolder);
+    const sanitizedFolder = sanitizeFolderName(folderName);
     if (isSubtitle) {
-      folder = `${expandedPath}/subs`;
+      folder = `${expandedPath}/${sanitizedFolder}/subs`;
     } else {
-      folder = expandedPath;
+      folder = `${expandedPath}/${sanitizedFolder}`;
     }
   }
 

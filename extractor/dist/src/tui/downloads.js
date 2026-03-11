@@ -46,7 +46,8 @@ export async function processDescriptor(descriptor, queueId, prefs, baseFolder) 
     const loader = spinner();
     loader.start('Queueing download');
     try {
-        await sendToDownloadManager(entry, downloadPage, queueId, descriptor.description, baseFolder, false);
+        // Use the title from TMDb metadata for the folder name
+        await sendToDownloadManager(entry, downloadPage, queueId, descriptor.description, baseFolder, false, descriptor.title);
         if (prefs.subtitleLanguage) {
             const subtitle = result.subtitles.find((s) => s.lanName === prefs.subtitleLanguage);
             if (subtitle) {
@@ -56,7 +57,7 @@ export async function processDescriptor(descriptor, queueId, prefs, baseFolder) 
                     size: subtitle.size,
                     url: subtitle.url
                 };
-                await sendToDownloadManager(subEntry, downloadPage, queueId, `${descriptor.description} - ${prefs.subtitleLanguage} subtitle`, baseFolder, true);
+                await sendToDownloadManager(subEntry, downloadPage, queueId, `${descriptor.description} - ${prefs.subtitleLanguage} subtitle`, baseFolder, true, descriptor.title);
                 console.log(`  Subtitle (${prefs.subtitleLanguage}) queued`);
             }
             else {

@@ -45,16 +45,27 @@ function expandTilde(path) {
     }
     return path;
 }
-export async function sendToDownloadManager(entry, downloadPage, queueId, name, baseFolder, isSubtitle) {
+function sanitizeFolderName(name) {
+    // Remove common suffixes and clean up
+    return name
+        .replace(/ \(movie\)$/i, '')
+        .replace(/[\/\\:*?"<>|]/g, '-') // Replace invalid filename chars
+        .trim();
+}
+export async function sendToDownloadManager(entry, downloadPage, queueId, name, baseFolder, isSubtitle, folderName) {
     // Build folder path (expand tilde to home directory)
+    // Structure: baseFolder/FolderName/ for videos
+    //            baseFolder/FolderName/subs/ for subtitles
+    // folderName is the series name for TV shows, or movie name for movies
     let folder = undefined;
-    if (baseFolder) {
+    if (baseFolder && folderName) {
         const expandedPath = expandTilde(baseFolder);
+        const sanitizedFolder = sanitizeFolderName(folderName);
         if (isSubtitle) {
-            folder = `${expandedPath}/subs`;
+            folder = `${expandedPath}/${sanitizedFolder}/subs`;
         }
         else {
-            folder = expandedPath;
+            folder = `${expandedPath}/${sanitizedFolder}`;
         }
     }
     const request = {

@@ -35,6 +35,7 @@ async function descriptorFromParsedUrl(
   originalUrl: string
 ): Promise<EpisodeDescriptor | null> {
   const result = await extractVidsrcLinks(originalUrl);
+  const title = result.metadata.title;
   const descriptor: EpisodeDescriptor = {
     type: parsed.type,
     tmdbId: result.tmdbId,
@@ -42,8 +43,9 @@ async function descriptorFromParsedUrl(
     episode: parsed.episode,
     description:
       parsed.type === 'movie'
-        ? `${result.metadata.title} (movie)`
-        : `${(result.metadata as { title: string }).title} S${parsed.season}E${parsed.episode}`
+        ? `${title} (movie)`
+        : `${title} S${parsed.season}E${parsed.episode}`,
+    title
   };
   return descriptor;
 }
@@ -106,7 +108,8 @@ async function descriptorsForTmdbSelection(type: VidSrcType, tmdbId: string): Pr
         tmdbId,
         season: null,
         episode: null,
-        description: `${details.title} (movie)`
+        description: `${details.title} (movie)`,
+        title: details.title
       }
     ];
   }
@@ -120,6 +123,7 @@ async function descriptorsForTmdbSelection(type: VidSrcType, tmdbId: string): Pr
     tmdbId,
     season: seasonNumber,
     episode: episodeNumber,
-    description: `${show.name} S${seasonNumber}E${episodeNumber}`
+    description: `${show.name} S${seasonNumber}E${episodeNumber}`,
+    title: show.name
   }));
 }

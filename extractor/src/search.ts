@@ -9,6 +9,7 @@ export interface EpisodeDescriptor {
   season: number | null;
   episode: number | null;
   description: string;
+  title: string; // The series/movie name from TMDb
 }
 
 export interface SearchResult {

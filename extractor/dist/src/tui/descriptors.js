@@ -22,14 +22,16 @@ export async function buildDescriptors(mode) {
 }
 async function descriptorFromParsedUrl(parsed, originalUrl) {
     const result = await extractVidsrcLinks(originalUrl);
+    const title = result.metadata.title;
     const descriptor = {
         type: parsed.type,
         tmdbId: result.tmdbId,
         season: parsed.season,
         episode: parsed.episode,
         description: parsed.type === 'movie'
-            ? `${result.metadata.title} (movie)`
-            : `${result.metadata.title} S${parsed.season}E${parsed.episode}`
+            ? `${title} (movie)`
+            : `${title} S${parsed.season}E${parsed.episode}`,
+        title
     };
     return descriptor;
 }
@@ -89,7 +91,8 @@ async function descriptorsForTmdbSelection(type, tmdbId) {
                 tmdbId,
                 season: null,
                 episode: null,
-                description: `${details.title} (movie)`
+                description: `${details.title} (movie)`,
+                title: details.title
             }
         ];
     }
@@ -103,6 +106,7 @@ async function descriptorsForTmdbSelection(type, tmdbId) {
         tmdbId,
         season: seasonNumber,
         episode: episodeNumber,
-        description: `${show.name} S${seasonNumber}E${episodeNumber}`
+        description: `${show.name} S${seasonNumber}E${episodeNumber}`,
+        title: show.name
     }));
 }
