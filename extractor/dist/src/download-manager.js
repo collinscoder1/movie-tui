@@ -49,7 +49,7 @@ export async function sendToDownloadManager(entry, downloadPage, queueId, name) 
         ],
         options: {
             silentAdd: true,
-            silentStart: false
+            silentStart: true
         }
     };
     const response = await fetch(`${DOWNLOAD_MANAGER_BASE}/add`, {

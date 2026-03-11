@@ -23,37 +23,208 @@ async function main() {
             return;
         }
         const queueId = await selectQueue();
-        const firstDescriptor = descriptors[0];
-        console.log('Fetching sample downloads for', firstDescriptor.description);
-        const sampleResult = await extractVidsrcLinks(buildVidsrcUrl(firstDescriptor));
-        const quality = await promptQuality(sampleResult);
+        const prefs = await collectPreferences(descriptors[0]);
+        let successCount = 0;
+        let failCount = 0;
+        let skipCount = 0;
         for (const descriptor of descriptors) {
-            console.log(`Processing ${descriptor.description} ...`);
-            const result = descriptor === firstDescriptor
-                ? sampleResult
-                : await extractVidsrcLinks(buildVidsrcUrl(descriptor));
-            const entry = findDownloadForQuality(result, quality);
-            if (!entry) {
-                console.log('  No download entry matched, skipping.');
-                continue;
-            }
-            const downloadPage = buildVidsrcUrl(descriptor);
-            const loader = spinner();
-            loader.start('Queueing download');
-            try {
-                await sendToDownloadManager(entry, downloadPage, queueId, descriptor.description);
-                loader.stop('Queued');
-            }
-            catch (error) {
-                loader.stop('Failed');
-                console.log('  Error sending to download manager:', error instanceof Error ? error.message : error);
-            }
+            console.log(`\nProcessing ${descriptor.description} ...`);
+            const result = await processDescriptor(descriptor, queueId, prefs);
+            if (result === 'success')
+                successCount++;
+            else if (result === 'fail')
+                failCount++;
+            else
+                skipCount++;
         }
+        console.log(`\n=== Summary: ${successCount} queued, ${failCount} failed, ${skipCount} skipped ===`);
         outro('Download requests submitted.');
     }
     catch (error) {
         outro(`Error: ${error instanceof Error ? error.message : String(error)}`);
     }
+}
+async function collectPreferences(firstDescriptor) {
+    console.log('\nFetching sample to check available options...');
+    let sampleResult = null;
+    try {
+        sampleResult = await extractVidsrcLinks(buildVidsrcUrl(firstDescriptor));
+    }
+    catch {
+        console.log('Could not fetch sample, will prompt per-episode.');
+    }
+    const subtitleLanguage = await selectSubtitleLanguage(sampleResult);
+    const qualityPreference = await selectQualityPreference(sampleResult);
+    return { subtitleLanguage, qualityPreference };
+}
+async function selectSubtitleLanguage(sampleResult) {
+    const languages = sampleResult?.subtitles.map(s => s.lanName) ?? [];
+    const uniqueLanguages = [...new Set(languages)];
+    if (uniqueLanguages.length === 0) {
+        const wantSubs = await confirm({ message: 'No subtitles found. Try to download subtitles anyway?' });
+        if (!wantSubs || isCancel(wantSubs)) {
+            return null;
+        }
+        const customLang = await text({ message: 'Enter preferred subtitle language (e.g., English):' });
+        if (isCancel(customLang) || !customLang) {
+            return null;
+        }
+        return customLang;
+    }
+    const options = [
+        { value: null, label: 'No subtitles' },
+        ...uniqueLanguages.map(lang => ({ value: lang, label: lang }))
+    ];
+    const choice = await select({ message: 'Select subtitle language:', options });
+    if (isCancel(choice)) {
+        return null;
+    }
+    return choice;
+}
+async function selectQualityPreference(sampleResult) {
+    const allEntries = sampleResult ? Object.values(sampleResult.downloads).flat() : [];
+    const availableFormats = [...new Set(allEntries.map(e => e.format))];
+    let selectedFormat;
+    if (availableFormats.length === 0) {
+        selectedFormat = 'any';
+    }
+    else if (availableFormats.length === 1) {
+        selectedFormat = availableFormats[0];
+        console.log(`Only one format available: ${selectedFormat}`);
+    }
+    else {
+        const formatChoice = await select({
+            message: 'Select preferred format:',
+            options: [
+                ...availableFormats.map(f => ({ value: f, label: f })),
+                { value: 'any', label: 'Any format' }
+            ]
+        });
+        if (isCancel(formatChoice)) {
+            selectedFormat = 'any';
+        }
+        else {
+            selectedFormat = formatChoice;
+        }
+    }
+    const resolutionChoice = await select({
+        message: 'Select preferred resolution:',
+        options: [
+            { value: '1080', label: '1080p (Full HD)' },
+            { value: '720', label: '720p (HD)' },
+            { value: '480', label: '480p (SD)' },
+            { value: '360', label: '360p (Low)' },
+            { value: 'auto', label: 'Auto (best available)' }
+        ]
+    });
+    const selectedResolution = isCancel(resolutionChoice) ? 'auto' : resolutionChoice;
+    return {
+        format: selectedFormat,
+        resolution: selectedResolution === 'auto' ? null : selectedResolution
+    };
+}
+async function processDescriptor(descriptor, queueId, prefs) {
+    let result;
+    try {
+        result = await extractVidsrcLinks(buildVidsrcUrl(descriptor));
+    }
+    catch (error) {
+        console.log(`  Extraction failed: ${error instanceof Error ? error.message : error}`);
+        return 'fail';
+    }
+    if (Object.keys(result.downloads).length === 0) {
+        console.log('  No downloads available for this content.');
+        return 'skip';
+    }
+    const entry = await selectQualityForEpisode(result, prefs.qualityPreference);
+    if (!entry) {
+        console.log('  No suitable quality selected, skipping.');
+        return 'skip';
+    }
+    const downloadPage = buildVidsrcUrl(descriptor);
+    const loader = spinner();
+    loader.start('Queueing download');
+    try {
+        await sendToDownloadManager(entry, downloadPage, queueId, descriptor.description);
+        if (prefs.subtitleLanguage) {
+            const subtitle = result.subtitles.find(s => s.lanName === prefs.subtitleLanguage);
+            if (subtitle) {
+                const subEntry = {
+                    format: 'SRT',
+                    resolution: null,
+                    size: subtitle.size,
+                    url: subtitle.url
+                };
+                await sendToDownloadManager(subEntry, downloadPage, queueId, `${descriptor.description} - ${prefs.subtitleLanguage} subtitle`);
+                console.log(`  Subtitle (${prefs.subtitleLanguage}) queued`);
+            }
+            else {
+                console.log(`  Subtitle (${prefs.subtitleLanguage}) not available, skipped`);
+            }
+        }
+        loader.stop('Queued');
+        return 'success';
+    }
+    catch (error) {
+        loader.stop('Failed');
+        console.log('  Error sending to download manager:', error instanceof Error ? error.message : error);
+        return 'fail';
+    }
+}
+async function selectQualityForEpisode(result, preference) {
+    const allEntries = Object.values(result.downloads).flat();
+    if (allEntries.length === 0) {
+        return null;
+    }
+    const formatFilter = preference.format === 'any' ? null : preference.format;
+    const resolutionFilter = preference.resolution;
+    if (resolutionFilter === null) {
+        // Auto resolution
+        const candidates = formatFilter
+            ? allEntries.filter(e => e.format === formatFilter)
+            : allEntries;
+        const bestEntry = findBestQuality(candidates.length > 0 ? candidates : allEntries);
+        if (bestEntry) {
+            console.log(`  Auto-selected: ${bestEntry.format} ${bestEntry.resolution || 'any'} (${bestEntry.size})`);
+        }
+        return bestEntry;
+    }
+    // Specific resolution requested
+    const candidates = formatFilter
+        ? allEntries.filter(e => e.format === formatFilter && e.resolution?.startsWith(resolutionFilter))
+        : allEntries.filter(e => e.resolution?.startsWith(resolutionFilter));
+    if (candidates.length > 0) {
+        const entry = candidates[0];
+        console.log(`  Found ${formatFilter || 'any'} ${resolutionFilter}p: ${entry.format} ${entry.resolution} (${entry.size})`);
+        return entry;
+    }
+    // Not found - need to re-prompt with all available
+    const targetDesc = formatFilter ? `${formatFilter} ${resolutionFilter}p` : `${resolutionFilter}p`;
+    console.log(`  ${targetDesc} not available for this episode`);
+    return await promptForAvailableQuality(allEntries);
+}
+function findBestQuality(entries) {
+    const resolutionPriority = ['1080', '720', '480', '360'];
+    for (const res of resolutionPriority) {
+        const match = entries.find(e => e.resolution?.startsWith(res));
+        if (match)
+            return match;
+    }
+    return entries[0] ?? null;
+}
+async function promptForAvailableQuality(entries) {
+    const options = entries.map(entry => ({
+        label: `${entry.format} ${entry.resolution || 'unknown'} · ${entry.size}`,
+        value: entry
+    }));
+    const choice = await select({
+        message: 'Choose from available qualities:',
+        options
+    });
+    if (isCancel(choice)) {
+        return null;
+    }
+    return choice;
 }
 async function buildDescriptors(mode) {
     if (mode === 'url') {
@@ -193,41 +364,6 @@ async function chooseEpisodes(available, season) {
         throw new Error('No valid episodes specified.');
     }
     return parsed;
-}
-async function promptQuality(result) {
-    const options = [];
-    const seen = new Set();
-    for (const [format, entries] of Object.entries(result.downloads)) {
-        for (const entry of entries) {
-            const resolutionKey = entry.resolution ?? 'any';
-            const key = `${format}|${resolutionKey}`;
-            if (seen.has(key)) {
-                continue;
-            }
-            seen.add(key);
-            options.push({
-                label: `${format} ${resolutionKey} · ${entry.size}`,
-                value: { format, resolution: entry.resolution }
-            });
-        }
-    }
-    if (!options.length) {
-        throw new Error('No downloads available to choose a quality.');
-    }
-    const choice = await select({ message: 'Choose download quality:', options });
-    if (isCancel(choice)) {
-        throw new Error('Canceled by user.');
-    }
-    return choice;
-}
-function findDownloadForQuality(result, quality) {
-    const entries = result.downloads[quality.format] ?? [];
-    const resolutionKey = quality.resolution ?? null;
-    const matched = entries.find((entry) => (entry.resolution ?? null) === resolutionKey);
-    if (matched) {
-        return matched;
-    }
-    return entries[0] ?? null;
 }
 async function selectQueue() {
     try {
