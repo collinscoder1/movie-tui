@@ -100,7 +100,14 @@ async function descriptorsForTmdbSelection(type, tmdbId) {
     const seasonNumber = await chooseSeason(show.seasons);
     const seasonData = await fetchSeasonDetails(tmdbId, seasonNumber);
     const availableEpisodes = seasonData.episodes.map((ep) => ep.episode_number);
-    const episodes = await chooseEpisodes(availableEpisodes, seasonNumber);
+    // Build episode titles map for multiselect
+    const episodeTitles = new Map();
+    for (const ep of seasonData.episodes) {
+        if (ep.name) {
+            episodeTitles.set(ep.episode_number, ep.name);
+        }
+    }
+    const episodes = await chooseEpisodes(availableEpisodes, seasonNumber, episodeTitles);
     return episodes.map((episodeNumber) => ({
         type: 'tv',
         tmdbId,

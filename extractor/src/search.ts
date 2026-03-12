@@ -86,7 +86,7 @@ export async function fetchTmdbShow(id: string): Promise<{
 }
 
 export async function fetchSeasonDetails(id: string, seasonNumber: number): Promise<{
-  episodes: Array<{ episode_number: number }>;
+  episodes: Array<{ episode_number: number; name: string }>;
 }> {
   const response = await fetch(`${TMDB_BASE_URL}/tv/${id}/season/${seasonNumber}?api_key=${TMDB_API_KEY}&language=en-US`);
   if (!response.ok) {

@@ -1,4 +1,4 @@
-import { select, text, confirm, isCancel } from '@clack/prompts';
+import { select, multiselect, text, confirm, isCancel } from '@clack/prompts';
 import { DOWNLOAD_MANAGER_BASE } from '../download-manager.js';
 import { ExtractionResult, DownloadEntry } from '../extractor.js';
 import { QualityPreference } from './types.js';
@@ -100,14 +100,53 @@ export async function chooseSeason(seasons: Array<{ season_number: number; episo
   return selection as number;
 }
 
-export async function chooseEpisodes(available: number[], season: number): Promise<number[]> {
-  const all = await confirm({ message: `Download all episodes of Season ${season}?` });
-  if (isCancel(all)) {
+export async function chooseEpisodes(
+  available: number[],
+  season: number,
+  episodeTitles?: Map<number, string>
+): Promise<number[]> {
+  const choice = await select({
+    message: `Season ${season} has ${available.length} episodes. What would you like to do?`,
+    options: [
+      { value: 'all', label: 'Select all episodes' },
+      { value: 'select', label: 'Select specific episodes (space to toggle)' },
+      { value: 'custom', label: 'Enter episode range (e.g., 1-3,5)' }
+    ]
+  });
+
+  if (isCancel(choice)) {
     throw new Error('Canceled by user.');
   }
-  if (all) {
+
+  if (choice === 'all') {
     return available;
   }
+
+  if (choice === 'select') {
+    // Use multiselect for interactive episode selection
+    const options = available.map(ep => {
+      const title = episodeTitles?.get(ep);
+      const label = title ? `E${ep.toString().padStart(2, '0')} - ${title}` : `E${ep.toString().padStart(2, '0')}`;
+      return { value: ep, label };
+    });
+
+    const selected = await multiselect({
+      message: 'Select episodes to download (space to toggle, enter to confirm):',
+      options
+    });
+
+    if (isCancel(selected)) {
+      throw new Error('Canceled by user.');
+    }
+
+    if (!selected.length) {
+      throw new Error('No episodes selected.');
+    }
+
+    return selected as number[];
+  }
+
+  // Custom text input
   const raw = await text({ message: 'Enter episodes (e.g. 1-3,5)' });
   if (isCancel(raw) || !raw) {
     throw new Error('Canceled by user.');

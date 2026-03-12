@@ -1,24 +1,55 @@
-import { intro, outro, isCancel, select, confirm } from '@clack/prompts';
-import { EpisodeDescriptor } from '../search.js';
-import { selectQueue, selectSubtitleLanguage, selectQualityPreference } from './prompts.js';
-import { buildDescriptors } from './descriptors.js';
+import { intro, outro, isCancel, select, confirm, text } from '@clack/prompts';
+import { EpisodeDescriptor, SearchResult } from '../search.js';
+import { selectQueue, selectSubtitleLanguage, selectQualityPreference, selectDownloadPath, chooseSeason } from './prompts.js';
+import { VidSrcType } from '../extractor.js';
 import { processDescriptor } from './downloads.js';
 import { UserPreferences } from './types.js';
-import { loadDefaultConfig, loadConfig, listConfigs, Config } from '../config.js';
+import { loadDefaultConfig, loadConfig, listConfigs, saveConfig, setDefaultConfig, Config, validateDownloadPath } from '../config.js';
 import { runConfigTui } from './config-tui.js';
+import { checkExistingDownloads, formatVerificationResults } from './file-checker.js';
+import { fetchTmdbMovie, fetchTmdbShow, fetchSeasonDetails, searchTmdb, buildVidsrcUrl } from '../search.js';
+import { extractVidsrcLinks, helpers } from '../extractor.js';
+import { multiselect } from '@clack/prompts';
+import { parseEpisodeInput } from '../search.js';
+
+type ActionType = 'download' | 'verify' | 'undownloaded';
+
+interface SeasonInfo {
+  tmdbId: string;
+  title: string;
+  seasonNumber: number;
+  episodes: Array<{ episode_number: number; name?: string }>;
+  type: 'tv';
+}
 
 async function main(): Promise<void> {
   intro('vidsrc download manager TUI');
   try {
-    const configCount = (await listConfigs()).length;
+    // STEP 1: Config Selection (BLOCKING - must have downloadPath)
+    const config = await selectConfigBlocking();
+    if (!config || !config.downloadPath) {
+      outro('Configuration with download path required. Please create a configuration first.');
+      return;
+    }
 
+    // STEP 2: Show selected config
+    console.log(`\nUsing configuration: ${config.name}`);
+    console.log(`  Download path: ${config.downloadPath}`);
+    console.log(`  Subtitle: ${config.subtitleLanguage ?? 'none'}`);
+    console.log(`  Format: ${config.preferredFormat}`);
+    console.log(`  Resolution: ${config.preferredResolution}`);
+
+    // STEP 3: Convert to prefs
+    const prefs = configToPrefs(config);
+    const baseFolder = config.downloadPath;
+
+    // STEP 4: Media search
     const mode = await select({
       message: 'How would you like to locate the media?',
       options: [
         { value: 'url', label: 'Provide a vidSrc URL' },
         { value: 'tmdb', label: 'Lookup by TMDb ID' },
-        { value: 'name', label: 'Search by name' },
-        { value: 'config', label: `Manage configurations (${configCount} saved)` }
+        { value: 'name', label: 'Search by name' }
       ]
     });
 
@@ -27,38 +58,299 @@ async function main(): Promise<void> {
       return;
     }
 
-    if (mode === 'config') {
-      await runConfigTui();
+    // STEP 5: Get season/show info (not individual episodes yet)
+    const seasonInfo = await getSeasonInfo(mode as 'url' | 'tmdb' | 'name');
+    if (!seasonInfo) {
+      outro('No media selected.');
       return;
     }
 
-    const descriptors = await buildDescriptors(mode as 'url' | 'tmdb' | 'name');
-    if (!descriptors.length) {
+    // Handle movies differently - they're simple
+    if (seasonInfo.type === 'movie') {
+      const descriptor: EpisodeDescriptor = {
+        type: 'movie',
+        tmdbId: seasonInfo.tmdbId,
+        season: null,
+        episode: null,
+        description: `${seasonInfo.title} (movie)`,
+        title: seasonInfo.title
+      };
+
+      // For movies, just ask what to do
+      const action = await selectMovieAction();
+
+      if (action === 'verify') {
+        console.log('\nChecking existing downloads...');
+        const { downloaded } = await checkExistingDownloads([descriptor], baseFolder);
+        console.log(formatVerificationResults([descriptor], downloaded));
+        outro('Done.');
+        return;
+      }
+
+      // Download or Undownloaded
+      let descriptorsToProcess: EpisodeDescriptor[] = [descriptor];
+      if (action === 'undownloaded') {
+        const { missing } = await checkExistingDownloads([descriptor], baseFolder);
+        if (missing.length === 0) {
+          console.log('\nMovie already downloaded!');
+          outro('Done.');
+          return;
+        }
+        console.log('\nMovie not downloaded. Queuing...');
+        descriptorsToProcess = missing;
+      }
+
+      await processDownloads(descriptorsToProcess, prefs, baseFolder);
+      return;
+    }
+
+    // STEP 6: For TV shows - Select action first
+    const action = await selectTvAction();
+
+    if (action === 'verify') {
+      // Build all episode descriptors
+      const descriptors = seasonInfo.episodes.map(ep => ({
+        type: 'tv' as const,
+        tmdbId: seasonInfo.tmdbId,
+        season: seasonInfo.seasonNumber,
+        episode: ep.episode_number,
+        description: `${seasonInfo.title} S${seasonInfo.seasonNumber}E${ep.episode_number}`,
+        title: seasonInfo.title
+      }));
+
+      console.log('\nChecking existing downloads...');
+      const { downloaded } = await checkExistingDownloads(descriptors, baseFolder);
+      console.log(formatVerificationResults(descriptors, downloaded));
+      outro('Done.');
+      return;
+    }
+
+    // STEP 7: Select episodes (for download or undownloaded)
+    const selectedEpisodes = await selectEpisodesFromSeason(seasonInfo);
+    if (selectedEpisodes.length === 0) {
       outro('No episodes selected.');
       return;
     }
 
-    const queueId = await selectQueue();
+    // Build descriptors for selected episodes
+    let descriptors: EpisodeDescriptor[] = selectedEpisodes.map(ep => ({
+      type: 'tv',
+      tmdbId: seasonInfo.tmdbId,
+      season: seasonInfo.seasonNumber,
+      episode: ep.episode_number,
+      description: `${seasonInfo.title} S${seasonInfo.seasonNumber}E${ep.episode_number}`,
+      title: seasonInfo.title
+    }));
 
-    // Config handling
-    const { prefs, effectiveConfig } = await handleConfiguration();
-
-  // Show what we're using
-  if (effectiveConfig) {
-    console.log(`\nUsing configuration: ${effectiveConfig.name}`);
-    console.log(`  Subtitle: ${prefs.subtitleLanguage ?? 'none'}`);
-    console.log(`  Format: ${prefs.qualityPreference.format}`);
-    console.log(`  Resolution: ${prefs.qualityPreference.resolution ?? 'auto'}`);
-    if (effectiveConfig.downloadPath) {
-      console.log(`  Download path: ${effectiveConfig.downloadPath}`);
+    // STEP 8: Handle undownloaded action
+    if (action === 'undownloaded') {
+      const { missing } = await checkExistingDownloads(descriptors, baseFolder);
+      if (missing.length === 0) {
+        console.log('\nAll selected episodes already downloaded!');
+        outro('Done.');
+        return;
+      }
+      console.log(`\nFound ${missing.length} missing episodes. Queuing...`);
+      descriptors = missing;
     }
+
+    await processDownloads(descriptors, prefs, baseFolder);
+
+  } catch (error) {
+    outro(`Error: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function getSeasonInfo(mode: 'url' | 'tmdb' | 'name'): Promise<SeasonInfo | { type: 'movie'; tmdbId: string; title: string } | null> {
+  if (mode === 'url') {
+    const value = await text({ message: 'Enter the vidSrc URL:' });
+    if (isCancel(value) || !value) {
+      throw new Error('Canceled by user.');
+    }
+    const parsed = helpers.parseVidsrcUrl(value);
+    const result = await extractVidsrcLinks(value);
+
+    if (parsed.type === 'movie') {
+      return {
+        type: 'movie',
+        tmdbId: result.tmdbId,
+        title: result.metadata.title
+      };
+    }
+
+    // For TV, fetch season details
+    const seasonData = await fetchSeasonDetails(result.tmdbId, parsed.season ?? 1);
+    return {
+      type: 'tv',
+      tmdbId: result.tmdbId,
+      title: result.metadata.title,
+      seasonNumber: parsed.season ?? 1,
+      episodes: seasonData.episodes
+    };
   }
 
-    let successCount = 0;
-    let failCount = 0;
-    let skipCount = 0;
+  // For tmdb/name modes
+  let mediaType: VidSrcType;
+  let tmdbId: string;
 
-  const baseFolder = effectiveConfig?.downloadPath;
+  if (mode === 'tmdb') {
+    const typeChoice = await select({
+      message: 'Is it a movie or TV show?',
+      options: [
+        { value: 'movie', label: 'Movie' },
+        { value: 'tv', label: 'TV show' }
+      ]
+    });
+    if (isCancel(typeChoice)) throw new Error('Canceled by user.');
+    mediaType = typeChoice as VidSrcType;
+
+    const idInput = await text({ message: 'Enter the TMDb ID:' });
+    if (isCancel(idInput) || !idInput) throw new Error('Canceled by user.');
+    tmdbId = idInput.trim();
+  } else {
+    // name mode
+    const typeChoice = await select({
+      message: 'Search for movies or TV shows?',
+      options: [
+        { value: 'movie', label: 'Movie' },
+        { value: 'tv', label: 'TV show' }
+      ]
+    });
+    if (isCancel(typeChoice)) throw new Error('Canceled by user.');
+    mediaType = typeChoice as VidSrcType;
+
+    const query = await text({ message: 'Enter name query:' });
+    if (isCancel(query) || !query) throw new Error('Canceled by user.');
+
+    const searchResults = await searchTmdb(mediaType, query.trim());
+    if (!searchResults.length) throw new Error('No results found for this query.');
+
+    const options = searchResults.map((item) => ({
+      value: item,
+      label: `${item.title} (${item.year})`
+    }));
+    const choice = await select({ message: 'Pick a result', options });
+    if (isCancel(choice)) throw new Error('Canceled by user.');
+    tmdbId = (choice as SearchResult).tmdbId;
+  }
+
+  if (mediaType === 'movie') {
+    const details = await fetchTmdbMovie(tmdbId);
+    return {
+      type: 'movie',
+      tmdbId,
+      title: details.title
+    };
+  }
+
+  // TV show
+  const show = await fetchTmdbShow(tmdbId);
+  const seasonNumber = await chooseSeason(show.seasons);
+  const seasonData = await fetchSeasonDetails(tmdbId, seasonNumber);
+
+  return {
+    type: 'tv',
+    tmdbId,
+    title: show.name,
+    seasonNumber,
+    episodes: seasonData.episodes
+  };
+}
+
+async function selectEpisodesFromSeason(seasonInfo: SeasonInfo): Promise<Array<{ episode_number: number; name?: string }>> {
+  const choice = await select({
+    message: `Season ${seasonInfo.seasonNumber} has ${seasonInfo.episodes.length} episodes. What would you like to do?`,
+    options: [
+      { value: 'all', label: 'Select all episodes' },
+      { value: 'select', label: 'Select specific episodes (space to toggle)' },
+      { value: 'custom', label: 'Enter episode range (e.g., 1-3,5)' }
+    ]
+  });
+
+  if (isCancel(choice)) {
+    throw new Error('Canceled by user.');
+  }
+
+  if (choice === 'all') {
+    return seasonInfo.episodes;
+  }
+
+  if (choice === 'select') {
+    // Use multiselect for interactive episode selection
+    const options = seasonInfo.episodes.map(ep => {
+      const label = ep.name ? `E${ep.episode_number.toString().padStart(2, '0')} - ${ep.name}` : `E${ep.episode_number.toString().padStart(2, '0')}`;
+      return { value: ep.episode_number, label };
+    });
+
+    const selected = await multiselect({
+      message: 'Select episodes to download (space to toggle, enter to confirm):',
+      options
+    });
+
+    if (isCancel(selected)) {
+      throw new Error('Canceled by user.');
+    }
+
+    if (!selected.length) {
+      throw new Error('No episodes selected.');
+    }
+
+    // Map back to full episode objects
+    return seasonInfo.episodes.filter(ep => selected.includes(ep.episode_number));
+  }
+
+  // Custom text input
+  const raw = await text({ message: 'Enter episodes (e.g. 1-3,5)' });
+  if (isCancel(raw) || !raw) {
+    throw new Error('Canceled by user.');
+  }
+  const parsed = parseEpisodeInput(raw, seasonInfo.episodes.map(e => e.episode_number));
+  if (!parsed.length) {
+    throw new Error('No valid episodes specified.');
+  }
+  return seasonInfo.episodes.filter(ep => parsed.includes(ep.episode_number));
+}
+
+async function selectTvAction(): Promise<ActionType> {
+  const choice = await select({
+    message: 'What would you like to do?',
+    options: [
+      { value: 'download', label: 'Download episodes' },
+      { value: 'verify', label: 'Verify downloads (check what\'s missing)' },
+      { value: 'undownloaded', label: 'Download undownloaded (only missing episodes)' }
+    ]
+  });
+
+  if (isCancel(choice)) {
+    throw new Error('Canceled by user.');
+  }
+
+  return choice as ActionType;
+}
+
+async function selectMovieAction(): Promise<ActionType> {
+  const choice = await select({
+    message: 'What would you like to do?',
+    options: [
+      { value: 'download', label: 'Download movie' },
+      { value: 'verify', label: 'Verify download' },
+      { value: 'undownloaded', label: 'Download movie if not present' }
+    ]
+  });
+
+  if (isCancel(choice)) {
+    throw new Error('Canceled by user.');
+  }
+
+  return choice as ActionType;
+}
+
+async function processDownloads(descriptors: EpisodeDescriptor[], prefs: UserPreferences, baseFolder: string): Promise<void> {
+  const queueId = await selectQueue();
+
+  let successCount = 0;
+  let failCount = 0;
+  let skipCount = 0;
 
   for (const descriptor of descriptors) {
     console.log(`\nProcessing ${descriptor.description} ...`);
@@ -68,89 +360,162 @@ async function main(): Promise<void> {
     else skipCount++;
   }
 
-    console.log(`\n=== Summary: ${successCount} queued, ${failCount} failed, ${skipCount} skipped ===`);
-    outro('Download requests submitted.');
-  } catch (error) {
-    outro(`Error: ${error instanceof Error ? error.message : String(error)}`);
+  console.log(`\n=== Summary: ${successCount} queued, ${failCount} failed, ${skipCount} skipped ===`);
+  outro('Download requests submitted.');
+}
+
+async function selectConfigBlocking(): Promise<Config | null> {
+  while (true) {
+    const configs = await listConfigs();
+
+    if (configs.length === 0) {
+      console.log('\nNo configurations found. Please create one.');
+      const newConfig = await createConfigWizard();
+      if (newConfig) {
+        await setDefaultConfig(newConfig.name);
+        return newConfig;
+      }
+      return null;
+    }
+
+    const defaultConfig = await loadDefaultConfig();
+    const options: { value: string; label: string }[] = [];
+
+    for (const name of configs) {
+      const config = await loadConfig(name);
+      if (config) {
+        const pathInfo = config.downloadPath ? '' : ' [NO PATH]';
+        const isDefault = defaultConfig?.name === name ? ' (default)' : '';
+        options.push({ value: name, label: `${name}${isDefault}${pathInfo}` });
+      }
+    }
+
+    options.push({ value: 'create', label: 'Create new configuration' });
+    options.push({ value: 'manage', label: 'Manage configurations' });
+
+    const choice = await select({
+      message: 'Select configuration:',
+      options
+    });
+
+    if (isCancel(choice)) {
+      return null;
+    }
+
+    if (choice === 'create') {
+      const newConfig = await createConfigWizard();
+      if (newConfig) {
+        const setDefault = await confirm({ message: `Set "${newConfig.name}" as default?` });
+        if (setDefault && !isCancel(setDefault)) {
+          await setDefaultConfig(newConfig.name);
+        }
+        return newConfig;
+      }
+      continue;
+    }
+
+    if (choice === 'manage') {
+      await runConfigTui();
+      continue;
+    }
+
+    const selectedConfig = await loadConfig(choice as string);
+    if (!selectedConfig) {
+      console.log('Error loading configuration. Please try again.');
+      continue;
+    }
+
+    if (!selectedConfig.downloadPath) {
+      console.log(`\nConfiguration "${selectedConfig.name}" has no download path.`);
+      const editChoice = await select({
+        message: 'What would you like to do?',
+        options: [
+          { value: 'edit', label: 'Add download path to this config' },
+          { value: 'select-other', label: 'Select different configuration' }
+        ]
+      });
+
+      if (isCancel(editChoice) || editChoice === 'select-other') {
+        continue;
+      }
+
+      const newPath = await selectDownloadPath();
+      if (!newPath) {
+        console.log('Download path required. Please try again.');
+        continue;
+      }
+
+      const validation = await validateDownloadPath(newPath);
+      if (!validation.valid) {
+        console.log(`Invalid path: ${validation.error}`);
+        continue;
+      }
+
+      const updatedConfig: Config = { ...selectedConfig, downloadPath: newPath };
+      await saveConfig(selectedConfig.name, {
+        subtitleLanguage: selectedConfig.subtitleLanguage,
+        preferredFormat: selectedConfig.preferredFormat,
+        preferredResolution: selectedConfig.preferredResolution,
+        downloadPath: newPath
+      });
+
+      console.log(`Configuration "${selectedConfig.name}" updated with download path.`);
+      return updatedConfig;
+    }
+
+    return selectedConfig;
   }
 }
 
-async function handleConfiguration(): Promise<{ prefs: UserPreferences; effectiveConfig: Config | null }> {
-  const configs = await listConfigs();
-  const defaultConfig = await loadDefaultConfig();
+async function createConfigWizard(): Promise<Config | null> {
+  console.log('\n--- Create New Configuration ---');
 
-  // No configs exist - prompt for preferences normally
-  if (configs.length === 0) {
-    console.log('\nNo saved configurations. Enter preferences:');
-    const prefs = await collectPreferences();
-    return { prefs, effectiveConfig: null };
-  }
-
-  // Ask user what to do
-  const defaultLabel = defaultConfig
-    ? `${defaultConfig.name} (${defaultConfig.preferredFormat}, ${defaultConfig.preferredResolution}p, ${defaultConfig.subtitleLanguage ?? 'no subs'})`
-    : 'none';
-
-  const choice = await select({
-    message: `Default config: ${defaultLabel}`,
-    options: [
-      { value: 'use-default', label: 'Yes, use default configuration' },
-      { value: 'select-other', label: 'Select different configuration' },
-      { value: 'custom', label: 'No, customize for this run only' }
-    ]
+  const nameInput = await text({
+    message: 'Configuration name:',
+    placeholder: 'e.g., default, high-quality, mobile'
   });
 
-  if (isCancel(choice)) {
-    // Treat cancel as "use default" if exists, otherwise custom
-    if (defaultConfig) {
-      return { prefs: configToPrefs(defaultConfig), effectiveConfig: defaultConfig };
-    }
-    const prefs = await collectPreferences();
-    return { prefs, effectiveConfig: null };
+  if (isCancel(nameInput) || !nameInput) {
+    return null;
   }
 
-  if (choice === 'use-default') {
-    if (!defaultConfig) {
-      console.log('No default configuration set. Enter preferences:');
-      const prefs = await collectPreferences();
-      return { prefs, effectiveConfig: null };
+  const name = String(nameInput).trim().toLowerCase().replace(/\s+/g, '-');
+
+  const configs = await listConfigs();
+  if (configs.includes(name)) {
+    const overwrite = await confirm({ message: `Configuration "${name}" already exists. Overwrite?` });
+    if (!overwrite || isCancel(overwrite)) {
+      return null;
     }
-    return { prefs: configToPrefs(defaultConfig), effectiveConfig: defaultConfig };
   }
 
-  if (choice === 'select-other') {
-    const configNames = await listConfigs();
-    const options = configNames.map(name => {
-      const isDefault = defaultConfig?.name === name;
-      return { value: name, label: isDefault ? `${name} (default)` : name };
-    });
-
-    const selected = await select({ message: 'Select configuration:', options });
-    if (isCancel(selected)) {
-      const prefs = await collectPreferences();
-      return { prefs, effectiveConfig: null };
-    }
-
-    const config = await loadConfig(selected as string);
-    if (!config) {
-      console.log('Configuration not found. Enter preferences:');
-      const prefs = await collectPreferences();
-      return { prefs, effectiveConfig: null };
-    }
-
-    // Ask if this should be the new default
-    const setDefault = await confirm({ message: `Set "${config.name}" as default?` });
-    if (setDefault && !isCancel(setDefault)) {
-      const { setDefaultConfig } = await import('../config.js');
-      await setDefaultConfig(config.name);
-    }
-
-    return { prefs: configToPrefs(config), effectiveConfig: config };
+  const downloadPath = await selectDownloadPath();
+  if (!downloadPath) {
+    console.log('Download path is required. Configuration not created.');
+    return null;
   }
 
-  // custom - prompt for everything
-  const prefs = await collectPreferences();
-  return { prefs, effectiveConfig: null };
+  const validation = await validateDownloadPath(downloadPath);
+  if (!validation.valid) {
+    console.log(`Invalid download path: ${validation.error}`);
+    return null;
+  }
+
+  const subtitleLanguage = await selectSubtitleLanguage();
+  const qualityPreference = await selectQualityPreference();
+
+  const config: Config = {
+    name,
+    subtitleLanguage,
+    preferredFormat: qualityPreference.format,
+    preferredResolution: qualityPreference.resolution ?? 'auto',
+    downloadPath
+  };
+
+  await saveConfig(name, config);
+  console.log(`\nConfiguration "${name}" created.`);
+
+  return config;
 }
 
 function configToPrefs(config: Config): UserPreferences {
@@ -161,13 +526,6 @@ function configToPrefs(config: Config): UserPreferences {
       resolution: config.preferredResolution === 'auto' ? null : config.preferredResolution
     }
   };
-}
-
-async function collectPreferences(): Promise<UserPreferences> {
-  const subtitleLanguage = await selectSubtitleLanguage();
-  const qualityPreference = await selectQualityPreference();
-
-  return { subtitleLanguage, qualityPreference };
 }
 
 main();
