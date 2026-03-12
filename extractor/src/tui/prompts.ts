@@ -13,8 +13,17 @@ export async function selectQueue(): Promise<number | null> {
     if (!queues?.length) {
       return null;
     }
+
+    // Look for default "movie-downloads" queue
+    const defaultQueue = queues.find((q: any) => q.name === 'movie-downloads');
+    if (defaultQueue) {
+      console.log(`  Using default queue: movie-downloads`);
+      return defaultQueue.id;
+    }
+
+    // Default not found - show selector with message
     const choice = await select({
-      message: 'Select a queue (leave default for automatic):',
+      message: `Default queue 'movie-downloads' not found. Select a queue:`,
       options: [{ value: null, label: 'Default queue (auto)' }, ...queues.map((queue: any) => ({ value: queue.id, label: queue.name }))]
     });
     if (isCancel(choice)) {
