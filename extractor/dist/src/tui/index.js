@@ -252,7 +252,8 @@ async function selectEpisodesFromSeason(seasonInfo) {
             throw new Error('No episodes selected.');
         }
         // Map back to full episode objects
-        return seasonInfo.episodes.filter(ep => selected.includes(ep.episode_number));
+        const selectedNumbers = selected;
+        return seasonInfo.episodes.filter(ep => selectedNumbers.includes(ep.episode_number));
     }
     // Custom text input
     const raw = await text({ message: 'Enter episodes (e.g. 1-3,5)' });

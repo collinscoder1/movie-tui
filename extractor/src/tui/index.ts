@@ -296,7 +296,8 @@ async function selectEpisodesFromSeason(seasonInfo: SeasonInfo): Promise<Array<{
     }
 
     // Map back to full episode objects
-    return seasonInfo.episodes.filter(ep => selected.includes(ep.episode_number));
+    const selectedNumbers = selected as number[];
+    return seasonInfo.episodes.filter(ep => selectedNumbers.includes(ep.episode_number));
   }
 
   // Custom text input
