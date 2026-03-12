@@ -1,0 +1,15 @@
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "downloads": [
+      {"format": "MP4", "resolution": 360, "url": "https://bcdnxw.hakunaymatata.com/resource/6f49ce66cb4b624325d82fae59392307.mp4", "size": 1234567},
+      {"format": "MP4", "resolution": 720, "url": "https://bcdnxw.hakunaymatata.com/resource/76812c3127e96a835469e77fcb1fad64.mp4", "size": 2345678}
+    ],
+    "captions": [
+      {"lanName": "English", "url": "https://subtitles.example.com/eng.vtt", "size": 3456},
+      {"lanName": "French", "url": "https://subtitles.example.com/fr.vtt", "size": 4567}
+    ],
+    "hasResource": true
+  }
+}

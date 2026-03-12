@@ -1,0 +1,34 @@
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "pager": {
+      "hasMore": true,
+      "nextPage": "2",
+      "page": "1",
+      "perPage": 30,
+      "totalCount": 181
+    },
+    "items": [
+      {
+        "subjectId": "989894703648756768",
+        "subjectType": 2,
+        "title": "Grown-ish S1-S6",
+        "detailPath": "grown-ish-oEQT6n9J7b1",
+        "releaseDate": "2018-01-03",
+        "hasResource": true,
+        "cover": {
+          "url": "https://pbcdnw.aoneroom.com/image/2026/01/27/a9bfc1057cd047b82d03350d1c3941e6.jpg"
+        }
+      },
+      {
+        "subjectId": "2582937563811987408",
+        "subjectType": 1,
+        "title": "S.O.S. Survive or Sacrifice",
+        "detailPath": "s-o-s-survive-or-sacrifice-unc85hESN43",
+        "releaseDate": "2020-10-28",
+        "hasResource": true
+      }
+    ]
+  }
+}
