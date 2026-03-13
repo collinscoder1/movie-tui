@@ -55,17 +55,20 @@ function seasonToEpisodes(season: { episodes: Array<{ episode: number; title?: s
 }
 
 function detailToSourceMedia(detail: MovieboxSubjectDetail): SourceMediaInfo {
+  // Use metadata title if available (clean title without season range)
+  const cleanTitle = (detail.metadata?.title as string) ?? detail.title;
   const metadata = {
     subjectId: detail.subjectId,
     detailPath: detail.detailPath,
-    releaseDate: detail.releaseDate
+    releaseDate: detail.releaseDate,
+    title: cleanTitle
   };
   if (detail.type === 'tv' || detail.type === 'anime') {
     const firstSeason = detail.seasons[0];
     return {
       type: 'tv',
       tmdbId: detail.detailPath,
-      title: detail.title,
+      title: cleanTitle,
       seasonNumber: firstSeason?.seasonNumber ?? 1,
       episodes: firstSeason ? seasonToEpisodes(firstSeason) : [],
       metadata
@@ -74,7 +77,7 @@ function detailToSourceMedia(detail: MovieboxSubjectDetail): SourceMediaInfo {
   return {
     type: 'movie',
     tmdbId: detail.detailPath,
-    title: detail.title,
+    title: cleanTitle,
     metadata
   };
 }
@@ -97,9 +100,11 @@ function movieboxDownloadResultToExtraction(
   const episodeTitle = descriptor.metadata?.episodeTitle ?? `Episode ${descriptor.episode ?? 0}`;
   const releaseDate = String(descriptor.metadata?.releaseDate ?? 'Unknown');
   const year = parseReleaseYear(releaseDate);
+  // Use clean title from metadata if available
+  const cleanTitle = (descriptor.metadata?.title as string) ?? descriptor.title;
   const metadata = descriptor.type === 'movie'
-    ? { title: descriptor.title, year }
-    : { title: descriptor.title, year, episodeTitle, releaseDate };
+    ? { title: cleanTitle, year }
+    : { title: cleanTitle, year, episodeTitle, releaseDate };
   const downloads: DownloadEntry[] = result.downloads.map((entry: MovieboxDownloadEntry) => ({
     format: entry.format,
     resolution: entry.resolution ?? null,
@@ -118,8 +123,8 @@ function movieboxDownloadResultToExtraction(
     tmdbId: descriptor.tmdbId,
     metadata,
     friendlyName: descriptor.type === 'movie'
-      ? `${descriptor.title} (${year})`
-      : `${descriptor.title} S${descriptor.season ?? 0}E${descriptor.episode ?? 0}`,
+      ? `${cleanTitle} (${year})`
+      : `${cleanTitle} S${descriptor.season ?? 0}E${descriptor.episode ?? 0}`,
     downloads: groupDownloads(downloads),
     subtitles,
     downloadPage: 'https://downloader2.com/'
@@ -127,8 +132,10 @@ function movieboxDownloadResultToExtraction(
 }
 
 function buildShowDetails(detail: MovieboxSubjectDetail) {
+  // Use metadata title if available (clean title without season range like "S1-S6")
+  const cleanTitle = (detail.metadata?.title as string) ?? detail.title;
   return {
-    name: detail.title,
+    name: cleanTitle,
     seasons: detail.seasons.map((season: MovieboxSeason) => ({
       season_number: season.seasonNumber,
       episode_count: season.episodes.length
@@ -183,7 +190,8 @@ export class MovieboxMediaSource implements MediaSource {
 
   async fetchMovieMetadata(tmdbId: string): Promise<{ title: string }> {
     const detail = await this.client.getSubjectDetail(tmdbId);
-    return { title: detail.title };
+    const cleanTitle = (detail.metadata?.title as string) ?? detail.title;
+    return { title: cleanTitle };
   }
 
   async fetchDownloads(descriptor: EpisodeDescriptor, options?: MediaSourceOptions): Promise<ExtractionResult> {

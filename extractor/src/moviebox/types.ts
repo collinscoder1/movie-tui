@@ -66,6 +66,7 @@ export interface MovieboxSubjectDetail {
   hasResource: boolean;
   coverUrl?: string;
   seasons: MovieboxSeason[];
+  metadata?: Record<string, unknown>;
 }
 
 export type RawEpisodeEntry = {
@@ -104,6 +105,7 @@ export interface RawDetailResponse {
     resource?: {
       seasons?: RawSeason[];
     };
+    metadata?: Record<string, unknown>;
   };
 }
 

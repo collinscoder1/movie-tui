@@ -180,7 +180,8 @@ export function parseDetailResponse(payload) {
         releaseDate: subject.releaseDate,
         hasResource: subject.hasResource ?? false,
         coverUrl: subject.cover?.url,
-        seasons
+        seasons,
+        metadata: payload.data.metadata
     };
 }
 export function parseDownloadResponse(payload) {

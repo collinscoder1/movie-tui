@@ -232,7 +232,8 @@ export function parseDetailResponse(payload: RawDetailResponse): MovieboxSubject
     releaseDate: subject.releaseDate,
     hasResource: subject.hasResource ?? false,
     coverUrl: subject.cover?.url,
-    seasons
+    seasons,
+    metadata: payload.data.metadata
   };
 }
 
