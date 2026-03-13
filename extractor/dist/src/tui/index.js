@@ -1,6 +1,6 @@
 import { intro, outro, isCancel, select, confirm, text } from '@clack/prompts';
 import { createSource } from '../source/index.js';
-import { selectQueue, chooseSeason } from './prompts.js';
+import { selectQueue, chooseSeason, selectResolution } from './prompts.js';
 import { processDescriptor } from './downloads.js';
 import { loadConfig, listConfigs } from '../config.js';
 import { runConfigTui } from './config-tui.js';
@@ -94,6 +94,9 @@ async function main() {
                 }
                 descriptorsToProcess = missing;
             }
+            // Select resolution for movie
+            const selectedRes = await selectResolution(prefs.qualityPreference.resolution);
+            prefs.qualityPreference.resolution = selectedRes;
             await processDownloads(descriptorsToProcess, source, prefs, baseFolder);
             return;
         }
@@ -143,6 +146,9 @@ async function main() {
             console.log(`\nFound ${missing.length} missing episodes. Queuing...`);
             descriptors = missing;
         }
+        // Select resolution for all episodes
+        const selectedRes = await selectResolution(prefs.qualityPreference.resolution);
+        prefs.qualityPreference.resolution = selectedRes;
         await processDownloads(descriptors, source, prefs, baseFolder);
     }
     catch (error) {

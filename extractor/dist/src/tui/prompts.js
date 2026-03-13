@@ -148,6 +148,23 @@ export async function promptForAvailableQuality(entries) {
     }
     return choice;
 }
+export async function selectResolution(configDefault) {
+    // Pre-select config default if it matches an option
+    const defaultValue = ['1080', '720', '480', '360'].includes(configDefault ?? '') ? configDefault : null;
+    const options = [
+        ...(defaultValue ? [{ value: defaultValue, label: `${defaultValue}p (Default from config)` }] : []),
+        { value: '1080', label: '1080p (Full HD)' },
+        { value: '720', label: '720p (HD)' },
+        { value: '480', label: '480p (SD)' },
+        { value: '360', label: '360p (Low)' },
+        { value: null, label: 'Auto (best available)' }
+    ];
+    const choice = await select({
+        message: 'Select resolution:',
+        options
+    });
+    return isCancel(choice) ? defaultValue : choice;
+}
 export async function selectDownloadPath() {
     const choice = await select({
         message: 'Configure download path?',

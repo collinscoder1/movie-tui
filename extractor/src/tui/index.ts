@@ -1,6 +1,6 @@
 import { intro, outro, isCancel, select, confirm, text } from '@clack/prompts';
 import { EpisodeDescriptor, SearchResult, createSource, SourceKey, MediaSource } from '../source/index.js';
-import { selectQueue, selectSubtitleLanguage, selectQualityPreference, selectDownloadPath, chooseSeason } from './prompts.js';
+import { selectQueue, selectSubtitleLanguage, selectQualityPreference, selectDownloadPath, chooseSeason, selectResolution } from './prompts.js';
 import { processDescriptor } from './downloads.js';
 import { UserPreferences } from './types.js';
 import { loadDefaultConfig, loadConfig, listConfigs, saveConfig, setDefaultConfig, Config, validateDownloadPath } from '../config.js';
@@ -115,12 +115,16 @@ async function main(): Promise<void> {
           outro('Done.');
           return;
         }
-        descriptorsToProcess = missing;
-      }
-
-      await processDownloads(descriptorsToProcess, source, prefs, baseFolder);
-      return;
+    descriptorsToProcess = missing;
     }
+
+    // Select resolution for movie
+    const selectedRes = await selectResolution(prefs.qualityPreference.resolution);
+    prefs.qualityPreference.resolution = selectedRes;
+
+    await processDownloads(descriptorsToProcess, source, prefs, baseFolder);
+    return;
+  }
 
     // STEP 6: For TV shows - Select action first
     const action = await selectTvAction();
@@ -170,11 +174,15 @@ async function main(): Promise<void> {
         outro('Done.');
         return;
       }
-      console.log(`\nFound ${missing.length} missing episodes. Queuing...`);
-      descriptors = missing;
-    }
+    console.log(`\nFound ${missing.length} missing episodes. Queuing...`);
+    descriptors = missing;
+  }
 
-    await processDownloads(descriptors, source, prefs, baseFolder);
+  // Select resolution for all episodes
+  const selectedRes = await selectResolution(prefs.qualityPreference.resolution);
+  prefs.qualityPreference.resolution = selectedRes;
+
+  await processDownloads(descriptors, source, prefs, baseFolder);
 
   } catch (error) {
     outro(`Error: ${error instanceof Error ? error.message : String(error)}`);

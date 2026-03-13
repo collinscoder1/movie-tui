@@ -82,6 +82,23 @@ function detailToSourceMedia(detail: MovieboxSubjectDetail): SourceMediaInfo {
   };
 }
 
+function formatBytes(bytes: number | string | undefined): string {
+  if (bytes === undefined || bytes === null) return 'Unknown';
+  const num = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+  if (isNaN(num) || num === 0) return 'Unknown';
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = num;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+
+  return `${size.toFixed(2).replace(/\.00$/, '').replace(/0$/, '')} ${units[unitIndex]}`;
+}
+
 function groupDownloads(entries: DownloadEntry[]) {
   return entries.reduce<Record<string, DownloadEntry[]>>((acc, entry) => {
     const bucket = entry.format || 'Other';
@@ -108,13 +125,13 @@ function movieboxDownloadResultToExtraction(
   const downloads: DownloadEntry[] = result.downloads.map((entry: MovieboxDownloadEntry) => ({
     format: entry.format,
     resolution: entry.resolution ?? null,
-    size: entry.size ?? 'Unknown',
+    size: formatBytes(entry.size),
     url: entry.url,
     headers: MOVIEBOX_DOWNLOAD_HEADERS
   }));
   const subtitles = result.subtitles.map((subtitle: MovieboxSubtitleEntry) => ({
     lanName: subtitle.lanName,
-    size: subtitle.size ?? 'Unknown',
+    size: formatBytes(subtitle.size),
     url: subtitle.url,
     headers: MOVIEBOX_DOWNLOAD_HEADERS
   }));
