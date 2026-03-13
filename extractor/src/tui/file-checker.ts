@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { EpisodeDescriptor } from '../search.js';
+import { EpisodeDescriptor } from '../source/index.js';
 
 export function sanitizeName(name: string): string {
   return name
@@ -58,6 +58,7 @@ export function formatVerificationResults(
 ): string {
   const missing = descriptors.filter(
     d => !downloaded.find(x =>
+      x.source === d.source &&
       x.type === d.type &&
       x.tmdbId === d.tmdbId &&
       x.season === d.season &&
@@ -71,7 +72,7 @@ export function formatVerificationResults(
     result += `${descriptors[0].title} Season ${descriptors[0].season}:\n`;
     for (const d of descriptors) {
       const isDownloaded = downloaded.find(
-        x => x.season === d.season && x.episode === d.episode
+        x => x.source === d.source && x.season === d.season && x.episode === d.episode
       );
       const status = isDownloaded ? '✓' : '✗';
       result += `  ${status} E${d.episode?.toString().padStart(2, '0')}\n`;

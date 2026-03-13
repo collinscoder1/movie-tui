@@ -1,9 +1,9 @@
 import { spinner } from '@clack/prompts';
 import { sendToDownloadManager } from '../download-manager.js';
-import { extractVidsrcLinks } from '../extractor.js';
-import { buildVidsrcUrl } from '../search.js';
+import { sourceService } from '../source/index.js';
 import { promptForAvailableQuality } from './prompts.js';
 import { validateDownloadPath } from '../config.js';
+import { buildVidsrcUrl } from '../search.js';
 export async function processDescriptor(descriptor, queueId, prefs, baseFolder) {
     // Validate/create base folder if provided
     if (baseFolder) {
@@ -15,7 +15,7 @@ export async function processDescriptor(descriptor, queueId, prefs, baseFolder) 
     }
     let result;
     try {
-        result = await extractVidsrcLinks(buildVidsrcUrl(descriptor));
+        result = await sourceService.fetchDownloads(descriptor);
     }
     catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);

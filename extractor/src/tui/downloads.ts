@@ -1,10 +1,10 @@
 import { spinner } from '@clack/prompts';
 import { sendToDownloadManager } from '../download-manager.js';
-import { extractVidsrcLinks, ExtractionResult, DownloadEntry } from '../extractor.js';
-import { EpisodeDescriptor, buildVidsrcUrl } from '../search.js';
+import { ExtractionResult, DownloadEntry, EpisodeDescriptor, sourceService } from '../source/index.js';
 import { QualityPreference, UserPreferences } from './types.js';
 import { promptForAvailableQuality } from './prompts.js';
 import { validateDownloadPath } from '../config.js';
+import { buildVidsrcUrl } from '../search.js';
 
 export async function processDescriptor(
   descriptor: EpisodeDescriptor,
@@ -23,7 +23,7 @@ export async function processDescriptor(
 
   let result: ExtractionResult;
   try {
-    result = await extractVidsrcLinks(buildVidsrcUrl(descriptor));
+    result = await sourceService.fetchDownloads(descriptor);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('fetch failed') || errorMessage.includes('network')) {

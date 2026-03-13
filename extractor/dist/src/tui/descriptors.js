@@ -1,6 +1,5 @@
 import { select, text, isCancel } from '@clack/prompts';
-import { extractVidsrcLinks, helpers } from '../extractor.js';
-import { fetchSeasonDetails, fetchTmdbMovie, fetchTmdbShow, searchTmdb } from '../search.js';
+import { sourceService } from '../source/index.js';
 import { chooseSeason, chooseEpisodes } from './prompts.js';
 export async function buildDescriptors(mode) {
     if (mode === 'url') {
@@ -8,9 +7,8 @@ export async function buildDescriptors(mode) {
         if (isCancel(value) || !value) {
             throw new Error('Canceled by user.');
         }
-        const parsed = helpers.parseVidsrcUrl(value);
-        const descriptor = await descriptorFromParsedUrl(parsed, value);
-        return descriptor ? [descriptor] : [];
+        const info = await sourceService.describeFromUrl(value);
+        return [descriptorFromMediaInfo(info)];
     }
     if (mode === 'tmdb') {
         return await descriptorsFromTmdb();
@@ -20,20 +18,31 @@ export async function buildDescriptors(mode) {
     }
     return [];
 }
-async function descriptorFromParsedUrl(parsed, originalUrl) {
-    const result = await extractVidsrcLinks(originalUrl);
-    const title = result.metadata.title;
-    const descriptor = {
-        type: parsed.type,
-        tmdbId: result.tmdbId,
-        season: parsed.season,
-        episode: parsed.episode,
-        description: parsed.type === 'movie'
-            ? `${title} (movie)`
-            : `${title} S${parsed.season}E${parsed.episode}`,
-        title
+function descriptorFromMediaInfo(info) {
+    if (info.type === 'movie') {
+        return {
+            source: 'vidsrc',
+            type: 'movie',
+            tmdbId: info.tmdbId,
+            season: null,
+            episode: null,
+            description: `${info.title} (movie)`,
+            title: info.title,
+            metadata: info.metadata
+        };
+    }
+    const seasonDesc = info.season ?? info.seasonNumber ?? 1;
+    const episodeDesc = info.episode ?? 1;
+    return {
+        source: 'vidsrc',
+        type: 'tv',
+        tmdbId: info.tmdbId,
+        season: seasonDesc,
+        episode: episodeDesc,
+        description: `${info.title} S${seasonDesc}E${episodeDesc}`,
+        title: info.title,
+        metadata: info.metadata
     };
-    return descriptor;
 }
 async function descriptorsFromTmdb() {
     const mediaType = await select({
@@ -67,7 +76,7 @@ async function descriptorsFromNameSearch() {
     if (isCancel(query) || !query) {
         throw new Error('Canceled by user.');
     }
-    const searchResults = await searchTmdb(mediaType, query.trim());
+    const searchResults = await sourceService.searchByName(mediaType, query.trim());
     if (!searchResults.length) {
         throw new Error('No results found for this query.');
     }
@@ -84,9 +93,10 @@ async function descriptorsFromNameSearch() {
 }
 async function descriptorsForTmdbSelection(type, tmdbId) {
     if (type === 'movie') {
-        const details = await fetchTmdbMovie(tmdbId);
+        const details = await sourceService.fetchMovieMetadata(tmdbId);
         return [
             {
+                source: 'vidsrc',
                 type: 'movie',
                 tmdbId,
                 season: null,
@@ -96,19 +106,19 @@ async function descriptorsForTmdbSelection(type, tmdbId) {
             }
         ];
     }
-    const show = await fetchTmdbShow(tmdbId);
+    const show = await sourceService.fetchShowDetails(tmdbId);
     const seasonNumber = await chooseSeason(show.seasons);
-    const seasonData = await fetchSeasonDetails(tmdbId, seasonNumber);
-    const availableEpisodes = seasonData.episodes.map((ep) => ep.episode_number);
-    // Build episode titles map for multiselect
+    const episodes = await sourceService.fetchSeasonEpisodes(tmdbId, seasonNumber);
+    const availableEpisodes = episodes.map((ep) => ep.episode_number);
     const episodeTitles = new Map();
-    for (const ep of seasonData.episodes) {
+    for (const ep of episodes) {
         if (ep.name) {
             episodeTitles.set(ep.episode_number, ep.name);
         }
     }
-    const episodes = await chooseEpisodes(availableEpisodes, seasonNumber, episodeTitles);
-    return episodes.map((episodeNumber) => ({
+    const selected = await chooseEpisodes(availableEpisodes, seasonNumber, episodeTitles);
+    return selected.map((episodeNumber) => ({
+        source: 'vidsrc',
         type: 'tv',
         tmdbId,
         season: seasonNumber,

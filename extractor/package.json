@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test dist/test/index.test.js dist/test/download.test.js dist/test/moviebox/moviebox.test.js",
+    "test": "npm run build && node --test dist/test/index.test.js dist/test/download.test.js dist/test/moviebox/moviebox.test.js dist/test/moviebox/download.test.js",
     "test:download": "npm run build && node --test dist/test/download.test.js",
     "tui": "npm run build && node dist/src/tui/index.js",
     "config": "npm run build && node dist/src/tui/config-tui.js"

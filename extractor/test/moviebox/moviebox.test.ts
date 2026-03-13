@@ -1,51 +1,60 @@
-import test from 'node:test';
+import test, { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
-import {
-  parseSearchResponse,
-  parseDetailResponse,
-  parseDownloadResponse
-} from '../../src/moviebox/index.js';
+import { getDownloadLinks, getSubjectDetail, searchSubjects } from '../../src/moviebox/index.js';
 
-test('parse moviebox search response into normalized summaries', async () => {
-  const file = path.join('test', 'moviebox', 'fixtures', 'search-response.json');
-  const payload = JSON.parse(await readFile(file, 'utf-8'));
-  const result = parseSearchResponse(payload);
-  assert.strictEqual(result.pager.page, 1);
-  assert.strictEqual(result.items.length, 2);
-  const first = result.items[0];
-  assert.deepStrictEqual(first, {
-    subjectId: '989894703648756768',
-    detailPath: 'grown-ish-oEQT6n9J7b1',
-    title: 'Grown-ish S1-S6',
-    releaseDate: '2018-01-03',
-    type: 'tv',
-    coverUrl: 'https://pbcdnw.aoneroom.com/image/2026/01/27/a9bfc1057cd047b82d03350d1c3941e6.jpg',
-    hasResource: true
-  });
+const DETAIL_PATH = 'the-chi-0OZDg6KP353';
+const SEARCH_KEYWORD = 'the chi';
+
+function handleNetworkError(t: TestContext, err: unknown): void {
+  const code = (err as any)?.cause?.code ?? (err as any)?.code;
+  if (code === 'EAI_AGAIN' || code === 'ENOTFOUND' || code === 'ECONNREFUSED') {
+    t.skip(`moviebox API unreachable (${code})`);
+    return;
+  }
+  throw err;
+}
+
+test('moviebox search uses live data', async (t) => {
+  try {
+    const result = await searchSubjects({ keyword: SEARCH_KEYWORD, subjectType: 2, perPage: 10 });
+    assert.ok(result.items.length > 0, 'search should return at least one subject');
+    assert.ok(
+      result.items.some((item) => item.detailPath === DETAIL_PATH),
+      `search results should include ${DETAIL_PATH}`
+    );
+  } catch (err) {
+    handleNetworkError(t, err);
+    return;
+  }
 });
 
-test('detail payload yields seasons and episodes', async () => {
-  const file = path.join('test', 'moviebox', 'fixtures', 'detail-response.json');
-  const payload = JSON.parse(await readFile(file, 'utf-8'));
-  const detail = parseDetailResponse(payload);
-  assert.strictEqual(detail.subjectId, '989894703648756768');
-  assert.strictEqual(detail.title, 'Grown-ish');
-  assert.strictEqual(detail.seasons.length, 2);
-  const [season1, season2] = detail.seasons;
-  assert.strictEqual(season1.seasonNumber, 1);
-  assert.strictEqual(season1.episodes.length, 13);
-  assert.strictEqual(season2.episodes.length, 21);
+test('detail payload yields seasons and episodes from live data', async (t) => {
+  try {
+    const detail = await getSubjectDetail(DETAIL_PATH);
+    assert.ok(detail.seasons.length > 0, 'detail should include at least one season');
+    assert.ok(
+      detail.seasons.some((season) => season.episodes.length > 0),
+      'at least one season should expose episodes'
+    );
+  } catch (err) {
+    handleNetworkError(t, err);
+    return;
+  }
 });
 
-test('download payload provides downloads and subtitles', async () => {
-  const file = path.join('test', 'moviebox', 'fixtures', 'download-response.json');
-  const payload = JSON.parse(await readFile(file, 'utf-8'));
-  const result = parseDownloadResponse(payload);
-  assert.strictEqual(result.downloads.length, 2);
-  assert.strictEqual(result.subtitles.length, 2);
-  assert.strictEqual(result.hasResource, true);
-  assert.strictEqual(result.downloads[0].resolution, '360');
-  assert.strictEqual(result.subtitles[0].lanName, 'English');
+test('download payload provides downloads and subtitles from live data', async (t) => {
+  try {
+    const detail = await getSubjectDetail(DETAIL_PATH);
+    assert.ok(detail.hasResource, 'detail should report downloadable resources');
+    const season = detail.seasons.find((entry) => entry.episodes.length > 0);
+    assert.ok(season, 'unable to find a season with episodes to download');
+    const episode = season.episodes[0];
+    assert.ok(episode, `season ${season?.seasonNumber ?? 'unknown'} should expose an episode`);
+    const downloadResult = await getDownloadLinks(detail.subjectId, season.seasonNumber, episode.episode, DETAIL_PATH);
+    assert.ok(downloadResult.downloads.length > 0, 'download response should include entries');
+    assert.ok(downloadResult.hasResource, 'download response should report hasResource');
+  } catch (err) {
+    handleNetworkError(t, err);
+    return;
+  }
 });

@@ -1,4 +1,4 @@
-import { ExtractionResult, DownloadEntry } from '../extractor.js';
+import { ExtractionResult, DownloadEntry } from '../source/index.js';
 
 export interface QualityPreference {
   format: string | 'any';

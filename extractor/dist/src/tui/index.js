@@ -1,11 +1,10 @@
 import { intro, outro, isCancel, select, confirm, text } from '@clack/prompts';
+import { sourceService } from '../source/index.js';
 import { selectQueue, selectSubtitleLanguage, selectQualityPreference, selectDownloadPath, chooseSeason } from './prompts.js';
 import { processDescriptor } from './downloads.js';
 import { loadDefaultConfig, loadConfig, listConfigs, saveConfig, setDefaultConfig, validateDownloadPath } from '../config.js';
 import { runConfigTui } from './config-tui.js';
 import { checkExistingDownloads, formatVerificationResults } from './file-checker.js';
-import { fetchTmdbMovie, fetchTmdbShow, fetchSeasonDetails, searchTmdb } from '../search.js';
-import { extractVidsrcLinks, helpers } from '../extractor.js';
 import { multiselect } from '@clack/prompts';
 import { parseEpisodeInput } from '../search.js';
 async function main() {
@@ -48,12 +47,14 @@ async function main() {
         // Handle movies differently - they're simple
         if (seasonInfo.type === 'movie') {
             const descriptor = {
+                source: 'vidsrc',
                 type: 'movie',
                 tmdbId: seasonInfo.tmdbId,
                 season: null,
                 episode: null,
                 description: `${seasonInfo.title} (movie)`,
-                title: seasonInfo.title
+                title: seasonInfo.title,
+                metadata: seasonInfo.metadata
             };
             // For movies, just ask what to do
             const action = await selectMovieAction();
@@ -84,12 +85,14 @@ async function main() {
         if (action === 'verify') {
             // Build all episode descriptors
             const descriptors = seasonInfo.episodes.map(ep => ({
+                source: 'vidsrc',
                 type: 'tv',
                 tmdbId: seasonInfo.tmdbId,
                 season: seasonInfo.seasonNumber,
                 episode: ep.episode_number,
                 description: `${seasonInfo.title} S${seasonInfo.seasonNumber}E${ep.episode_number}`,
-                title: seasonInfo.title
+                title: seasonInfo.title,
+                metadata: seasonInfo.metadata
             }));
             console.log('\nChecking existing downloads...');
             const { downloaded } = await checkExistingDownloads(descriptors, baseFolder);
@@ -105,12 +108,14 @@ async function main() {
         }
         // Build descriptors for selected episodes
         let descriptors = selectedEpisodes.map(ep => ({
+            source: 'vidsrc',
             type: 'tv',
             tmdbId: seasonInfo.tmdbId,
             season: seasonInfo.seasonNumber,
             episode: ep.episode_number,
             description: `${seasonInfo.title} S${seasonInfo.seasonNumber}E${ep.episode_number}`,
-            title: seasonInfo.title
+            title: seasonInfo.title,
+            metadata: seasonInfo.metadata
         }));
         // STEP 8: Handle undownloaded action
         if (action === 'undownloaded') {
@@ -135,89 +140,69 @@ async function getSeasonInfo(mode) {
         if (isCancel(value) || !value) {
             throw new Error('Canceled by user.');
         }
-        const parsed = helpers.parseVidsrcUrl(value);
-        const result = await extractVidsrcLinks(value);
-        if (parsed.type === 'movie') {
-            return {
-                type: 'movie',
-                tmdbId: result.tmdbId,
-                title: result.metadata.title
-            };
+        const info = await sourceService.describeFromUrl(value);
+        if (info.type === 'movie') {
+            return { type: 'movie', tmdbId: info.tmdbId, title: info.title };
         }
-        // For TV, fetch season details
-        const seasonData = await fetchSeasonDetails(result.tmdbId, parsed.season ?? 1);
         return {
             type: 'tv',
-            tmdbId: result.tmdbId,
-            title: result.metadata.title,
-            seasonNumber: parsed.season ?? 1,
-            episodes: seasonData.episodes
+            tmdbId: info.tmdbId,
+            title: info.title,
+            seasonNumber: info.season ?? info.seasonNumber,
+            episodes: info.episodes
         };
     }
-    // For tmdb/name modes
-    let mediaType;
+    const mediaTypeSelection = await select({
+        message: 'Is it a movie or TV show?',
+        options: [
+            { value: 'movie', label: 'Movie' },
+            { value: 'tv', label: 'TV show' }
+        ]
+    });
+    if (isCancel(mediaTypeSelection)) {
+        throw new Error('Canceled by user.');
+    }
+    const mediaType = mediaTypeSelection;
     let tmdbId;
     if (mode === 'tmdb') {
-        const typeChoice = await select({
-            message: 'Is it a movie or TV show?',
-            options: [
-                { value: 'movie', label: 'Movie' },
-                { value: 'tv', label: 'TV show' }
-            ]
-        });
-        if (isCancel(typeChoice))
-            throw new Error('Canceled by user.');
-        mediaType = typeChoice;
         const idInput = await text({ message: 'Enter the TMDb ID:' });
-        if (isCancel(idInput) || !idInput)
+        if (isCancel(idInput) || !idInput) {
             throw new Error('Canceled by user.');
+        }
         tmdbId = idInput.trim();
     }
     else {
-        // name mode
-        const typeChoice = await select({
-            message: 'Search for movies or TV shows?',
-            options: [
-                { value: 'movie', label: 'Movie' },
-                { value: 'tv', label: 'TV show' }
-            ]
-        });
-        if (isCancel(typeChoice))
-            throw new Error('Canceled by user.');
-        mediaType = typeChoice;
         const query = await text({ message: 'Enter name query:' });
-        if (isCancel(query) || !query)
+        if (isCancel(query) || !query) {
             throw new Error('Canceled by user.');
-        const searchResults = await searchTmdb(mediaType, query.trim());
-        if (!searchResults.length)
+        }
+        const searchResults = await sourceService.searchByName(mediaType, query.trim());
+        if (!searchResults.length) {
             throw new Error('No results found for this query.');
+        }
         const options = searchResults.map((item) => ({
             value: item,
             label: `${item.title} (${item.year})`
         }));
         const choice = await select({ message: 'Pick a result', options });
-        if (isCancel(choice))
+        if (isCancel(choice)) {
             throw new Error('Canceled by user.');
+        }
         tmdbId = choice.tmdbId;
     }
     if (mediaType === 'movie') {
-        const details = await fetchTmdbMovie(tmdbId);
-        return {
-            type: 'movie',
-            tmdbId,
-            title: details.title
-        };
+        const details = await sourceService.fetchMovieMetadata(tmdbId);
+        return { type: 'movie', tmdbId, title: details.title };
     }
-    // TV show
-    const show = await fetchTmdbShow(tmdbId);
+    const show = await sourceService.fetchShowDetails(tmdbId);
     const seasonNumber = await chooseSeason(show.seasons);
-    const seasonData = await fetchSeasonDetails(tmdbId, seasonNumber);
+    const episodes = await sourceService.fetchSeasonEpisodes(tmdbId, seasonNumber);
     return {
         type: 'tv',
         tmdbId,
         title: show.name,
         seasonNumber,
-        episodes: seasonData.episodes
+        episodes
     };
 }
 async function selectEpisodesFromSeason(seasonInfo) {

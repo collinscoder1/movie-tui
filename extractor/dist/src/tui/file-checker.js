@@ -39,7 +39,8 @@ async function isFileDownloaded(descriptor, baseFolder) {
     }
 }
 export function formatVerificationResults(descriptors, downloaded) {
-    const missing = descriptors.filter(d => !downloaded.find(x => x.type === d.type &&
+    const missing = descriptors.filter(d => !downloaded.find(x => x.source === d.source &&
+        x.type === d.type &&
         x.tmdbId === d.tmdbId &&
         x.season === d.season &&
         x.episode === d.episode));
@@ -47,7 +48,7 @@ export function formatVerificationResults(descriptors, downloaded) {
     if (descriptors[0].type === 'tv') {
         result += `${descriptors[0].title} Season ${descriptors[0].season}:\n`;
         for (const d of descriptors) {
-            const isDownloaded = downloaded.find(x => x.season === d.season && x.episode === d.episode);
+            const isDownloaded = downloaded.find(x => x.source === d.source && x.season === d.season && x.episode === d.episode);
             const status = isDownloaded ? '✓' : '✗';
             result += `  ${status} E${d.episode?.toString().padStart(2, '0')}\n`;
         }

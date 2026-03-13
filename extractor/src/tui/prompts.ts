@@ -1,6 +1,6 @@
 import { select, multiselect, text, confirm, isCancel } from '@clack/prompts';
 import { DOWNLOAD_MANAGER_BASE } from '../download-manager.js';
-import { ExtractionResult, DownloadEntry } from '../extractor.js';
+import { ExtractionResult, DownloadEntry } from '../source/index.js';
 import { QualityPreference } from './types.js';
 
 export async function selectQueue(): Promise<number | null> {

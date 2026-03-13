@@ -68,12 +68,32 @@ export interface MovieboxSubjectDetail {
   seasons: MovieboxSeason[];
 }
 
-export interface RawSeason {
-  se: number;
-  maxEp?: number;
+export type RawEpisodeEntry = {
+  ep?: number;
+  episode?: number;
+  episodeNum?: number;
+  epNum?: number;
+  title?: string;
+  name?: string;
+  se?: number;
   season?: number;
   seasonNum?: number;
+  seasonNumber?: number;
+};
+
+export interface RawSeason {
+  se?: number;
+  maxEp?: number | string;
+  season?: number;
+  seasonNum?: number;
+  seasonNumber?: number;
+  allEp?: string;
   resolutions?: Array<{ resolution?: number; epNum?: number }>;
+  episodes?: RawEpisodeEntry[];
+  episodeList?: RawEpisodeEntry[];
+  list?: RawEpisodeEntry[];
+  videoList?: RawEpisodeEntry[];
+  videos?: RawEpisodeEntry[];
 }
 
 export interface RawDetailResponse {
@@ -81,6 +101,9 @@ export interface RawDetailResponse {
   message: string;
   data: {
     subject: RawSubjectDetail;
+    resource?: {
+      seasons?: RawSeason[];
+    };
   };
 }
 
@@ -95,6 +118,8 @@ export interface RawSubjectDetail {
   resource?: {
     seasons?: RawSeason[];
   };
+  seasonList?: RawSeason[];
+  seasons?: RawSeason[];
 }
 
 export interface RawDownloadResponse {

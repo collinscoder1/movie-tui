@@ -4,18 +4,21 @@ const TMDB_API_KEY = '54e00466a09676df57ba51c4ca30b1a6';
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 export interface EpisodeDescriptor {
+  source: string;
   type: VidSrcType;
   tmdbId: string;
   season: number | null;
   episode: number | null;
   description: string;
-  title: string; // The series/movie name from TMDb
+  title: string; // The series/movie name from TMDb or the provider
+  metadata?: Record<string, unknown>;
 }
 
 export interface SearchResult {
   tmdbId: string;
   title: string;
   year: string;
+  metadata?: Record<string, unknown>;
 }
 
 export function parseEpisodeInput(value: string, available: number[]): number[] {
