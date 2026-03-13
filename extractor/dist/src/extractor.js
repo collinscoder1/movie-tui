@@ -236,7 +236,8 @@ export async function extractVidsrcLinks(input, options = {}) {
         metadata,
         friendlyName,
         downloads: downloadPayload.downloads,
-        subtitles: downloadPayload.subtitles
+        subtitles: downloadPayload.subtitles,
+        downloadPage: `https://dl.vidsrc.vip/${parsed.type}/tmdb-${tmdbId}`
     };
 }
 export const helpers = {

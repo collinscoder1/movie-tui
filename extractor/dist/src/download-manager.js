@@ -68,10 +68,14 @@ export async function sendToDownloadManager(entry, downloadPage, queueId, name, 
             folder = `${expandedPath}/${sanitizedFolder}`;
         }
     }
+    const downloadHeaders = {
+        ...buildDownloadHeaders(),
+        ...(entry.headers ?? {})
+    };
     const request = {
         downloadSource: {
             link: entry.url,
-            headers: buildDownloadHeaders(),
+            headers: downloadHeaders,
             downloadPage: downloadPage,
             suggestedName: buildFilename(name, entry.format)
         }

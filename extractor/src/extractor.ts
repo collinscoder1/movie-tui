@@ -31,12 +31,14 @@ export interface DownloadEntry {
   format: string;
   size: string;
   url: string;
+  headers?: Record<string, string>;
 }
 
 interface SubtitleEntry {
   lanName: string;
   size: string;
   url: string;
+  headers?: Record<string, string>;
 }
 
 export interface ExtractionResult {
@@ -46,6 +48,7 @@ export interface ExtractionResult {
   friendlyName: string;
   downloads: Record<string, DownloadEntry[]>;
   subtitles: SubtitleEntry[];
+  downloadPage: string;
 }
 
 interface StorageAdapterLike {
@@ -348,7 +351,8 @@ export async function extractVidsrcLinks(
     metadata,
     friendlyName,
     downloads: downloadPayload.downloads,
-    subtitles: downloadPayload.subtitles
+    subtitles: downloadPayload.subtitles,
+    downloadPage: `https://dl.vidsrc.vip/${parsed.type}/tmdb-${tmdbId}`
   };
 }
 

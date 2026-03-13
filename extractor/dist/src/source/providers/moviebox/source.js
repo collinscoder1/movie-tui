@@ -3,6 +3,10 @@ const subjectTypeMap = {
     movie: 1,
     tv: 2
 };
+const MOVIEBOX_DOWNLOAD_HEADERS = {
+    referer: 'https://downloader2.com/',
+    origin: 'https://downloader2.com'
+};
 function parseReleaseYear(value) {
     if (!value)
         return 'unknown';
@@ -60,12 +64,14 @@ function movieboxDownloadResultToExtraction(descriptor, result) {
         format: entry.format,
         resolution: entry.resolution ?? null,
         size: entry.size ?? 'Unknown',
-        url: entry.url
+        url: entry.url,
+        headers: MOVIEBOX_DOWNLOAD_HEADERS
     }));
     const subtitles = result.subtitles.map((subtitle) => ({
         lanName: subtitle.lanName,
         size: subtitle.size ?? 'Unknown',
-        url: subtitle.url
+        url: subtitle.url,
+        headers: MOVIEBOX_DOWNLOAD_HEADERS
     }));
     return {
         type: descriptor.type,
@@ -75,7 +81,8 @@ function movieboxDownloadResultToExtraction(descriptor, result) {
             ? `${descriptor.title} (${year})`
             : `${descriptor.title} S${descriptor.season ?? 0}E${descriptor.episode ?? 0}`,
         downloads: groupDownloads(downloads),
-        subtitles
+        subtitles,
+        downloadPage: 'https://downloader2.com/'
     };
 }
 function buildShowDetails(detail) {

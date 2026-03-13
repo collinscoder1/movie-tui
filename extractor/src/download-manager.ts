@@ -97,10 +97,15 @@ export async function sendToDownloadManager(
     }
   }
 
+  const downloadHeaders = {
+    ...buildDownloadHeaders(),
+    ...(entry.headers ?? {})
+  };
+
   const request: HeadlessDownloadRequest = {
     downloadSource: {
       link: entry.url,
-      headers: buildDownloadHeaders(),
+      headers: downloadHeaders,
       downloadPage: downloadPage,
       suggestedName: buildFilename(name, entry.format)
     }
