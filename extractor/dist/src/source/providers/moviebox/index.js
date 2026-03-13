@@ -1,1 +1,1 @@
-export { createMovieboxSource } from './source.js';
+export { MovieboxMediaSource, createMovieboxSource } from './source.js';

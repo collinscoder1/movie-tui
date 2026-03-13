@@ -58,9 +58,8 @@ export class SourceService {
     return this.resolveSource(key).fetchMovieMetadata(tmdbId);
   }
 
-  fetchDownloads(descriptor: EpisodeDescriptor, options?: MediaSourceOptions): Promise<ExtractionResult> {
-    const sourceKey = descriptor.source ?? this.activeKey;
-    return this.resolveSource(sourceKey).fetchDownloads(descriptor, options);
+  fetchDownloads(descriptor: EpisodeDescriptor, options?: MediaSourceOptions, key?: SourceKey): Promise<ExtractionResult> {
+    return this.resolveSource(key).fetchDownloads(descriptor, options);
   }
 
   private resolveSource(key?: SourceKey): MediaSource {

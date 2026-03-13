@@ -4,7 +4,6 @@ const TMDB_API_KEY = '54e00466a09676df57ba51c4ca30b1a6';
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 export interface EpisodeDescriptor {
-  source: string;
   type: VidSrcType;
   tmdbId: string;
   season: number | null;

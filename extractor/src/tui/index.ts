@@ -1,5 +1,5 @@
 import { intro, outro, isCancel, select, confirm, text } from '@clack/prompts';
-import { EpisodeDescriptor, SearchResult, sourceService } from '../source/index.js';
+import { EpisodeDescriptor, SearchResult, createSource, SourceKey, MediaSource } from '../source/index.js';
 import { selectQueue, selectSubtitleLanguage, selectQualityPreference, selectDownloadPath, chooseSeason } from './prompts.js';
 import { processDescriptor } from './downloads.js';
 import { UserPreferences } from './types.js';
@@ -11,6 +11,7 @@ import { parseEpisodeInput } from '../search.js';
 import { SourceTvSeasonInfo, SourceMovieInfo, MediaType } from '../source/types.js';
 
 type ActionType = 'download' | 'verify' | 'undownloaded';
+type SearchMode = 'url' | 'tmdb' | 'name';
 
 type SeasonInfo = SourceTvSeasonInfo;
 type MovieInfo = SourceMovieInfo;
@@ -36,14 +37,38 @@ async function main(): Promise<void> {
     const prefs = configToPrefs(config);
     const baseFolder = config.downloadPath;
 
-    // STEP 4: Media search
+    // STEP 4: Select source provider
+    const sourceKey = await select({
+      message: 'Select content source:',
+      options: [
+        { value: 'vidsrc', label: 'VidSrc (vidsrc.vip)' },
+        { value: 'moviebox', label: 'Moviebox' }
+      ]
+    });
+
+    if (isCancel(sourceKey)) {
+      outro('Operation canceled.');
+      return;
+    }
+
+    // Create the source instance
+    const source = createSource(sourceKey as SourceKey);
+
+    // STEP 5: Media search mode (some modes may not work with all sources)
+    const modeOptions = [
+      { value: 'url', label: 'Provide a URL' },
+      { value: 'tmdb', label: 'Lookup by TMDb ID' },
+      { value: 'name', label: 'Search by name' }
+    ];
+
+    // URL mode doesn't work with moviebox
+    if (sourceKey === 'moviebox') {
+      modeOptions.shift(); // Remove URL option
+    }
+
     const mode = await select({
       message: 'How would you like to locate the media?',
-      options: [
-        { value: 'url', label: 'Provide a vidSrc URL' },
-        { value: 'tmdb', label: 'Lookup by TMDb ID' },
-        { value: 'name', label: 'Search by name' }
-      ]
+      options: modeOptions
     });
 
     if (isCancel(mode)) {
@@ -51,8 +76,8 @@ async function main(): Promise<void> {
       return;
     }
 
-    // STEP 5: Get season/show info (not individual episodes yet)
-    const seasonInfo = await getSeasonInfo(mode as 'url' | 'tmdb' | 'name');
+    // STEP 6: Get season/show info (not individual episodes yet)
+    const seasonInfo = await getSeasonInfo(mode as SearchMode, source);
     if (!seasonInfo) {
       outro('No media selected.');
       return;
@@ -61,7 +86,6 @@ async function main(): Promise<void> {
     // Handle movies differently - they're simple
     if (seasonInfo.type === 'movie') {
       const descriptor: EpisodeDescriptor = {
-        source: 'vidsrc',
         type: 'movie',
         tmdbId: seasonInfo.tmdbId,
         season: null,
@@ -91,11 +115,10 @@ async function main(): Promise<void> {
           outro('Done.');
           return;
         }
-        console.log('\nMovie not downloaded. Queuing...');
         descriptorsToProcess = missing;
       }
 
-      await processDownloads(descriptorsToProcess, prefs, baseFolder);
+      await processDownloads(descriptorsToProcess, source, prefs, baseFolder);
       return;
     }
 
@@ -105,7 +128,6 @@ async function main(): Promise<void> {
     if (action === 'verify') {
       // Build all episode descriptors
       const descriptors = seasonInfo.episodes.map(ep => ({
-        source: 'vidsrc',
         type: 'tv' as const,
         tmdbId: seasonInfo.tmdbId,
         season: seasonInfo.seasonNumber,
@@ -131,7 +153,6 @@ async function main(): Promise<void> {
 
     // Build descriptors for selected episodes
     let descriptors: EpisodeDescriptor[] = selectedEpisodes.map(ep => ({
-      source: 'vidsrc',
       type: 'tv',
       tmdbId: seasonInfo.tmdbId,
       season: seasonInfo.seasonNumber,
@@ -153,20 +174,20 @@ async function main(): Promise<void> {
       descriptors = missing;
     }
 
-    await processDownloads(descriptors, prefs, baseFolder);
+    await processDownloads(descriptors, source, prefs, baseFolder);
 
   } catch (error) {
     outro(`Error: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
-async function getSeasonInfo(mode: 'url' | 'tmdb' | 'name'): Promise<SeasonInfo | MovieInfo | null> {
+async function getSeasonInfo(mode: SearchMode, source: MediaSource): Promise<SeasonInfo | MovieInfo | null> {
   if (mode === 'url') {
     const value = await text({ message: 'Enter the vidSrc URL:' });
     if (isCancel(value) || !value) {
       throw new Error('Canceled by user.');
     }
-    const info = await sourceService.describeFromUrl(value);
+    const info = await source.describeFromUrl(value);
     if (info.type === 'movie') {
       return { type: 'movie', tmdbId: info.tmdbId, title: info.title };
     }
@@ -192,6 +213,7 @@ async function getSeasonInfo(mode: 'url' | 'tmdb' | 'name'): Promise<SeasonInfo 
   const mediaType = mediaTypeSelection as MediaType;
 
   let tmdbId: string;
+
   if (mode === 'tmdb') {
     const idInput = await text({ message: 'Enter the TMDb ID:' });
     if (isCancel(idInput) || !idInput) {
@@ -203,7 +225,7 @@ async function getSeasonInfo(mode: 'url' | 'tmdb' | 'name'): Promise<SeasonInfo 
     if (isCancel(query) || !query) {
       throw new Error('Canceled by user.');
     }
-    const searchResults = await sourceService.searchByName(mediaType, query.trim());
+    const searchResults = await source.searchByName(mediaType, query.trim());
     if (!searchResults.length) {
       throw new Error('No results found for this query.');
     }
@@ -219,13 +241,13 @@ async function getSeasonInfo(mode: 'url' | 'tmdb' | 'name'): Promise<SeasonInfo 
   }
 
   if (mediaType === 'movie') {
-    const details = await sourceService.fetchMovieMetadata(tmdbId);
+    const details = await source.fetchMovieMetadata(tmdbId);
     return { type: 'movie', tmdbId, title: details.title };
   }
 
-  const show = await sourceService.fetchShowDetails(tmdbId);
+  const show = await source.fetchShowDetails(tmdbId);
   const seasonNumber = await chooseSeason(show.seasons);
-  const episodes = await sourceService.fetchSeasonEpisodes(tmdbId, seasonNumber);
+  const episodes = await source.fetchSeasonEpisodes(tmdbId, seasonNumber);
   return {
     type: 'tv',
     tmdbId,
@@ -254,38 +276,32 @@ async function selectEpisodesFromSeason(seasonInfo: SeasonInfo): Promise<Array<{
   }
 
   if (choice === 'select') {
-    // Use multiselect for interactive episode selection
-    const options = seasonInfo.episodes.map(ep => {
-      const label = ep.name ? `E${ep.episode_number.toString().padStart(2, '0')} - ${ep.name}` : `E${ep.episode_number.toString().padStart(2, '0')}`;
-      return { value: ep.episode_number, label };
-    });
-
+    const options = seasonInfo.episodes.map(ep => ({
+      value: ep.episode_number,
+      label: `Episode ${ep.episode_number}${ep.name ? `: ${ep.name}` : ''}`,
+      hint: ep.name
+    }));
     const selected = await multiselect({
-      message: 'Select episodes to download (space to toggle, enter to confirm):',
+      message: 'Select episodes (space to toggle, enter to confirm):',
       options
     });
-
     if (isCancel(selected)) {
       throw new Error('Canceled by user.');
     }
-
-    if (!selected.length) {
-      throw new Error('No episodes selected.');
-    }
-
-    // Map back to full episode objects
-    const selectedNumbers = selected as number[];
-    return seasonInfo.episodes.filter(ep => selectedNumbers.includes(ep.episode_number));
+    return seasonInfo.episodes.filter(ep => (selected as number[]).includes(ep.episode_number));
   }
 
-  // Custom text input
-  const raw = await text({ message: 'Enter episodes (e.g. 1-3,5)' });
-  if (isCancel(raw) || !raw) {
+  // Custom range input
+  const rangeInput = await text({
+    message: 'Enter episode range (e.g., 1-3,5,7-10):'
+  });
+  if (isCancel(rangeInput) || !rangeInput) {
     throw new Error('Canceled by user.');
   }
-  const parsed = parseEpisodeInput(raw, seasonInfo.episodes.map(e => e.episode_number));
-  if (!parsed.length) {
-    throw new Error('No valid episodes specified.');
+  const available = seasonInfo.episodes.map(ep => ep.episode_number);
+  const parsed = parseEpisodeInput(rangeInput, available);
+  if (parsed.length === 0) {
+    throw new Error('No valid episodes in range.');
   }
   return seasonInfo.episodes.filter(ep => parsed.includes(ep.episode_number));
 }
@@ -295,15 +311,13 @@ async function selectTvAction(): Promise<ActionType> {
     message: 'What would you like to do?',
     options: [
       { value: 'download', label: 'Download episodes' },
-      { value: 'verify', label: 'Verify downloads (check what\'s missing)' },
-      { value: 'undownloaded', label: 'Download undownloaded (only missing episodes)' }
+      { value: 'verify', label: 'Verify existing downloads' },
+      { value: 'undownloaded', label: 'Download missing episodes only' }
     ]
   });
-
   if (isCancel(choice)) {
     throw new Error('Canceled by user.');
   }
-
   return choice as ActionType;
 }
 
@@ -312,197 +326,108 @@ async function selectMovieAction(): Promise<ActionType> {
     message: 'What would you like to do?',
     options: [
       { value: 'download', label: 'Download movie' },
-      { value: 'verify', label: 'Verify download' },
-      { value: 'undownloaded', label: 'Download movie if not present' }
+      { value: 'verify', label: 'Verify existing download' },
+      { value: 'undownloaded', label: 'Download if missing' }
     ]
   });
-
   if (isCancel(choice)) {
     throw new Error('Canceled by user.');
   }
-
   return choice as ActionType;
 }
 
-async function processDownloads(descriptors: EpisodeDescriptor[], prefs: UserPreferences, baseFolder: string): Promise<void> {
+async function processDownloads(
+  descriptors: EpisodeDescriptor[],
+  source: MediaSource,
+  prefs: UserPreferences,
+  baseFolder: string
+): Promise<void> {
+  // Select queue
   const queueId = await selectQueue();
-
-  let successCount = 0;
-  let failCount = 0;
-  let skipCount = 0;
-
-  for (const descriptor of descriptors) {
-    console.log(`\nProcessing ${descriptor.description} ...`);
-    const result = await processDescriptor(descriptor, queueId, prefs, baseFolder);
-    if (result === 'success') successCount++;
-    else if (result === 'fail') failCount++;
-    else skipCount++;
+  if (isCancel(queueId)) {
+    throw new Error('Canceled by user.');
   }
 
-  console.log(`\n=== Summary: ${successCount} queued, ${failCount} failed, ${skipCount} skipped ===`);
+  // Confirm download
+  const confirmed = await confirm({
+    message: `Queue ${descriptors.length} item(s) for download?`
+  });
+  if (isCancel(confirmed) || !confirmed) {
+    outro('Download canceled.');
+    return;
+  }
+
+  // Process each descriptor
+  console.log('\nProcessing downloads...\n');
+  let success = 0;
+  let fail = 0;
+  let skip = 0;
+
+  for (const descriptor of descriptors) {
+    const result = await processDescriptor(descriptor, source, queueId, prefs, baseFolder);
+    if (result === 'success') success++;
+    else if (result === 'fail') fail++;
+    else skip++;
+  }
+
+  console.log(`\n=== Summary: ${success} queued, ${fail} failed, ${skip} skipped ===\n`);
   outro('Download requests submitted.');
 }
 
 async function selectConfigBlocking(): Promise<Config | null> {
-  while (true) {
-    const configs = await listConfigs();
-
-    if (configs.length === 0) {
-      console.log('\nNo configurations found. Please create one.');
-      const newConfig = await createConfigWizard();
-      if (newConfig) {
-        await setDefaultConfig(newConfig.name);
-        return newConfig;
-      }
+  const configNames = await listConfigs();
+  if (configNames.length === 0) {
+    console.log('No configurations found. Opening config setup...\n');
+    await runConfigTui();
+    const updatedNames = await listConfigs();
+    if (updatedNames.length === 0) {
       return null;
     }
+    // Load first available config after creating one
+    const firstName = updatedNames[0];
+    return loadConfig(firstName);
+  }
 
-    const defaultConfig = await loadDefaultConfig();
-    const options: { value: string; label: string }[] = [];
-
-    for (const name of configs) {
-      const config = await loadConfig(name);
-      if (config) {
-        const pathInfo = config.downloadPath ? '' : ' [NO PATH]';
-        const isDefault = defaultConfig?.name === name ? ' (default)' : '';
-        options.push({ value: name, label: `${name}${isDefault}${pathInfo}` });
-      }
-    }
-
-    options.push({ value: 'create', label: 'Create new configuration' });
-    options.push({ value: 'manage', label: 'Manage configurations' });
-
-    const choice = await select({
-      message: 'Select configuration:',
-      options
+  // Load all configs to check which is default
+  const configs = (await Promise.all(configNames.map(loadConfig))).filter((c): c is Config => c !== null);
+  
+  const defaultConfig = configs.find(c => c.name === configNames[0]); // First config is typically default
+  if (defaultConfig) {
+    const useDefault = await confirm({
+      message: `Use configuration "${defaultConfig.name}"?`
     });
-
-    if (isCancel(choice)) {
-      return null;
+    if (isCancel(useDefault)) {
+      throw new Error('Canceled by user.');
     }
-
-    if (choice === 'create') {
-      const newConfig = await createConfigWizard();
-      if (newConfig) {
-        const setDefault = await confirm({ message: `Set "${newConfig.name}" as default?` });
-        if (setDefault && !isCancel(setDefault)) {
-          await setDefaultConfig(newConfig.name);
-        }
-        return newConfig;
-      }
-      continue;
-    }
-
-    if (choice === 'manage') {
-      await runConfigTui();
-      continue;
-    }
-
-    const selectedConfig = await loadConfig(choice as string);
-    if (!selectedConfig) {
-      console.log('Error loading configuration. Please try again.');
-      continue;
-    }
-
-    if (!selectedConfig.downloadPath) {
-      console.log(`\nConfiguration "${selectedConfig.name}" has no download path.`);
-      const editChoice = await select({
-        message: 'What would you like to do?',
-        options: [
-          { value: 'edit', label: 'Add download path to this config' },
-          { value: 'select-other', label: 'Select different configuration' }
-        ]
-      });
-
-      if (isCancel(editChoice) || editChoice === 'select-other') {
-        continue;
-      }
-
-      const newPath = await selectDownloadPath();
-      if (!newPath) {
-        console.log('Download path required. Please try again.');
-        continue;
-      }
-
-      const validation = await validateDownloadPath(newPath);
-      if (!validation.valid) {
-        console.log(`Invalid path: ${validation.error}`);
-        continue;
-      }
-
-      const updatedConfig: Config = { ...selectedConfig, downloadPath: newPath };
-      await saveConfig(selectedConfig.name, {
-        subtitleLanguage: selectedConfig.subtitleLanguage,
-        preferredFormat: selectedConfig.preferredFormat,
-        preferredResolution: selectedConfig.preferredResolution,
-        downloadPath: newPath
-      });
-
-      console.log(`Configuration "${selectedConfig.name}" updated with download path.`);
-      return updatedConfig;
-    }
-
-    return selectedConfig;
-  }
-}
-
-async function createConfigWizard(): Promise<Config | null> {
-  console.log('\n--- Create New Configuration ---');
-
-  const nameInput = await text({
-    message: 'Configuration name:',
-    placeholder: 'e.g., default, high-quality, mobile'
-  });
-
-  if (isCancel(nameInput) || !nameInput) {
-    return null;
-  }
-
-  const name = String(nameInput).trim().toLowerCase().replace(/\s+/g, '-');
-
-  const configs = await listConfigs();
-  if (configs.includes(name)) {
-    const overwrite = await confirm({ message: `Configuration "${name}" already exists. Overwrite?` });
-    if (!overwrite || isCancel(overwrite)) {
-      return null;
+    if (useDefault) {
+      return defaultConfig;
     }
   }
 
-  const downloadPath = await selectDownloadPath();
-  if (!downloadPath) {
-    console.log('Download path is required. Configuration not created.');
-    return null;
+  const options = [
+    ...configs.map(c => ({ value: c.name, label: c.name })),
+    { value: 'new', label: 'Create new configuration' }
+  ];
+  const choice = await select({ message: 'Select configuration:', options });
+  if (isCancel(choice)) {
+    throw new Error('Canceled by user.');
+  }
+  if (choice === 'new') {
+    await runConfigTui();
+    const updatedNames = await listConfigs();
+    const newestName = updatedNames[updatedNames.length - 1];
+    return newestName ? loadConfig(newestName) : null;
   }
 
-  const validation = await validateDownloadPath(downloadPath);
-  if (!validation.valid) {
-    console.log(`Invalid download path: ${validation.error}`);
-    return null;
-  }
-
-  const subtitleLanguage = await selectSubtitleLanguage();
-  const qualityPreference = await selectQualityPreference();
-
-  const config: Config = {
-    name,
-    subtitleLanguage,
-    preferredFormat: qualityPreference.format,
-    preferredResolution: qualityPreference.resolution ?? 'auto',
-    downloadPath
-  };
-
-  await saveConfig(name, config);
-  console.log(`\nConfiguration "${name}" created.`);
-
-  return config;
+  return loadConfig(choice as string);
 }
 
 function configToPrefs(config: Config): UserPreferences {
   return {
-    subtitleLanguage: config.subtitleLanguage,
+    subtitleLanguage: config.subtitleLanguage ?? null,
     qualityPreference: {
-      format: config.preferredFormat,
-      resolution: config.preferredResolution === 'auto' ? null : config.preferredResolution
+      format: config.preferredFormat ?? 'any',
+      resolution: config.preferredResolution ?? null
     }
   };
 }

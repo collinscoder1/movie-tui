@@ -33,9 +33,8 @@ export class SourceService {
     fetchMovieMetadata(tmdbId, key) {
         return this.resolveSource(key).fetchMovieMetadata(tmdbId);
     }
-    fetchDownloads(descriptor, options) {
-        const sourceKey = descriptor.source ?? this.activeKey;
-        return this.resolveSource(sourceKey).fetchDownloads(descriptor, options);
+    fetchDownloads(descriptor, options, key) {
+        return this.resolveSource(key).fetchDownloads(descriptor, options);
     }
     resolveSource(key) {
         const lookup = key ?? this.activeKey;

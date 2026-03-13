@@ -54,9 +54,8 @@ test('moviebox provider fetchDownloads returns grouped entries and subtitles', a
     getDownloadLinks: async () => fixtures.downloads
   });
 
-  const descriptor: EpisodeDescriptor = {
-    source: 'moviebox',
-    type: 'tv',
+const descriptor: EpisodeDescriptor = {
+      type: 'tv',
     tmdbId: fixtures.detail.detailPath,
     season: 1,
     episode: 1,

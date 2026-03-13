@@ -1,1 +1,1 @@
-export { createVidsrcSource } from './source.js';
+export { VidsrcMediaSource, createVidsrcSource } from './source.js';

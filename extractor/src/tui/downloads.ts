@@ -1,13 +1,13 @@
 import { spinner } from '@clack/prompts';
 import { sendToDownloadManager } from '../download-manager.js';
-import { ExtractionResult, DownloadEntry, EpisodeDescriptor, sourceService } from '../source/index.js';
+import { ExtractionResult, DownloadEntry, EpisodeDescriptor, MediaSource } from '../source/index.js';
 import { QualityPreference, UserPreferences } from './types.js';
 import { promptForAvailableQuality } from './prompts.js';
 import { validateDownloadPath } from '../config.js';
-import { buildVidsrcUrl } from '../search.js';
 
 export async function processDescriptor(
   descriptor: EpisodeDescriptor,
+  source: MediaSource,
   queueId: number | null,
   prefs: UserPreferences,
   baseFolder?: string | null
@@ -23,17 +23,17 @@ export async function processDescriptor(
 
   let result: ExtractionResult;
   try {
-    result = await sourceService.fetchDownloads(descriptor);
+    result = await source.fetchDownloads(descriptor);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('fetch failed') || errorMessage.includes('network')) {
-      console.log(` Network error: Unable to fetch downloads. Check your connection.`);
+      console.log(`  Network error: Unable to fetch downloads. Check your connection.`);
     } else if (errorMessage.includes('Unable to resolve')) {
-      console.log(` Source not found: No downloads available for this episode.`);
+      console.log(`  Source not found: No downloads available for this episode.`);
     } else if (errorMessage.includes('timeout')) {
-      console.log(` Request timed out: The server took too long to respond.`);
+      console.log(`  Request timed out: The server took too long to respond.`);
     } else {
-      console.log(` Extraction failed: ${errorMessage}`);
+      console.log(`  Extraction failed: ${errorMessage}`);
     }
     return 'fail';
   }
@@ -49,11 +49,12 @@ export async function processDescriptor(
     return 'skip';
   }
 
-  const downloadPage = buildVidsrcUrl(descriptor);
   const loader = spinner();
   loader.start('Queueing download');
   try {
-    // Use the title from TMDb metadata for the folder name
+    // Use the title from metadata for the folder name
+    const downloadPage = `https://dl.vidsrc.vip/${descriptor.type}/tmdb-${descriptor.tmdbId}`;
+    
     await sendToDownloadManager(entry, downloadPage, queueId, descriptor.description, baseFolder, false, descriptor.title);
 
     if (prefs.subtitleLanguage) {
@@ -79,11 +80,11 @@ export async function processDescriptor(
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('Download manager returned')) {
       const statusCode = errorMessage.match(/\d+/)?.[0];
-      console.log(` Download manager error (HTTP ${statusCode}): Service unavailable. Check if AB Download Manager is running.`);
+      console.log(`  Download manager error (HTTP ${statusCode}): Service unavailable. Check if AB Download Manager is running.`);
     } else if (errorMessage.includes('fetch failed') || errorMessage.includes('ECONNREFUSED')) {
-      console.log(` Cannot connect to download manager: Make sure AB Download Manager is running on localhost:15151.`);
+      console.log(`  Cannot connect to download manager: Make sure AB Download Manager is running on localhost:15151.`);
     } else {
-      console.log(` Download failed: ${errorMessage}`);
+      console.log(`  Download failed: ${errorMessage}`);
     }
     return 'fail';
   }

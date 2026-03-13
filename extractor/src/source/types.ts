@@ -37,6 +37,7 @@ export type UrlMediaInfo = SourceMediaInfo & {
 export interface MediaSourceOptions {
   fetchImpl?: typeof fetch;
   supabaseClient?: SupabaseClient;
+  signal?: AbortSignal;
 }
 
 export interface MediaSource {

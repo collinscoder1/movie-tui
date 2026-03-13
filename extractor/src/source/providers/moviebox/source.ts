@@ -13,6 +13,7 @@ import type { EpisodeDescriptor, SearchResult } from '../../../search.js';
 import type { ExtractionResult, DownloadEntry } from '../../../extractor.js';
 import type {
   MediaSource,
+  MediaSourceOptions,
   MediaType,
   SourceEpisode,
   SourceMediaInfo
@@ -127,53 +128,70 @@ function buildShowDetails(detail: MovieboxSubjectDetail) {
   };
 }
 
-export function createMovieboxSource(client: MovieboxSourceClient = { searchSubjects, getSubjectDetail, getDownloadLinks }): MediaSource {
-  return {
-    searchByName: (type, query) => {
-      const subjectType = subjectTypeMap[type];
-      return client.searchSubjects({ keyword: query, subjectType }).then((payload) =>
-        payload.items.map((item: SubjectSummary) => ({
-          tmdbId: item.detailPath,
-          title: item.title,
-          year: parseReleaseYear(item.releaseDate),
-          metadata: {
-            subjectId: item.subjectId,
-            detailPath: item.detailPath,
-            releaseDate: item.releaseDate
-          }
-        }))
-      );
-    },
-    describeFromUrl: () => {
-      throw new Error('Moviebox URLs are not supported yet');
-    },
-    describeFromTmdb: async (type, tmdbId) => {
-      const detail = await client.getSubjectDetail(tmdbId);
-      return detailToSourceMedia(detail);
-    },
-    fetchSeasonEpisodes: async (tmdbId, season) => {
-      const detail = await client.getSubjectDetail(tmdbId);
-      const matched = detail.seasons.find((s: MovieboxSeason) => s.seasonNumber === season);
-      return matched ? seasonToEpisodes(matched) : [];
-    },
-    fetchShowDetails: async (tmdbId) => {
-      const detail = await client.getSubjectDetail(tmdbId);
-      return buildShowDetails(detail);
-    },
-    fetchMovieMetadata: async (tmdbId) => {
-      const detail = await client.getSubjectDetail(tmdbId);
-      return { title: detail.title };
-    },
-    fetchDownloads: async (descriptor, options) => {
-      const { metadata } = descriptor;
-      const detailPath = typeof metadata?.detailPath === 'string' ? metadata.detailPath : descriptor.tmdbId;
-      const subjectId = typeof metadata?.subjectId === 'string'
-        ? metadata.subjectId
-        : (await client.getSubjectDetail(detailPath)).subjectId;
-      const season = descriptor.type === 'movie' ? 1 : descriptor.season ?? 1;
-      const episode = descriptor.type === 'movie' ? 1 : descriptor.episode ?? 1;
-      const downloads = await client.getDownloadLinks(subjectId, season, episode, detailPath, options);
-      return movieboxDownloadResultToExtraction(descriptor, downloads);
-    }
-  };
+// Default client implementation
+const defaultClient: MovieboxSourceClient = {
+  searchSubjects,
+  getSubjectDetail,
+  getDownloadLinks
+};
+
+export class MovieboxMediaSource implements MediaSource {
+  constructor(private client: MovieboxSourceClient = defaultClient) {}
+
+  async searchByName(type: MediaType, query: string): Promise<SearchResult[]> {
+    const subjectType = subjectTypeMap[type];
+    const payload = await this.client.searchSubjects({ keyword: query, subjectType });
+    return payload.items.map((item: SubjectSummary) => ({
+      tmdbId: item.detailPath,
+      title: item.title,
+      year: parseReleaseYear(item.releaseDate),
+      metadata: {
+        subjectId: item.subjectId,
+        detailPath: item.detailPath,
+        releaseDate: item.releaseDate
+      }
+    }));
+  }
+
+  async describeFromUrl(): Promise<never> {
+    throw new Error('Moviebox URLs are not supported yet');
+  }
+
+  async describeFromTmdb(type: MediaType, tmdbId: string): Promise<SourceMediaInfo> {
+    const detail = await this.client.getSubjectDetail(tmdbId);
+    return detailToSourceMedia(detail);
+  }
+
+  async fetchSeasonEpisodes(tmdbId: string, season: number): Promise<SourceEpisode[]> {
+    const detail = await this.client.getSubjectDetail(tmdbId);
+    const matched = detail.seasons.find((s: MovieboxSeason) => s.seasonNumber === season);
+    return matched ? seasonToEpisodes(matched) : [];
+  }
+
+  async fetchShowDetails(tmdbId: string): Promise<{ name: string; seasons: Array<{ season_number: number; episode_count?: number }> }> {
+    const detail = await this.client.getSubjectDetail(tmdbId);
+    return buildShowDetails(detail);
+  }
+
+  async fetchMovieMetadata(tmdbId: string): Promise<{ title: string }> {
+    const detail = await this.client.getSubjectDetail(tmdbId);
+    return { title: detail.title };
+  }
+
+  async fetchDownloads(descriptor: EpisodeDescriptor, options?: MediaSourceOptions): Promise<ExtractionResult> {
+    const { metadata } = descriptor;
+    const detailPath = typeof metadata?.detailPath === 'string' ? metadata.detailPath : descriptor.tmdbId;
+    const subjectId = typeof metadata?.subjectId === 'string'
+      ? metadata.subjectId
+      : (await this.client.getSubjectDetail(detailPath)).subjectId;
+    const season = descriptor.type === 'movie' ? 0 : descriptor.season ?? 1;
+    const episode = descriptor.type === 'movie' ? 0 : descriptor.episode ?? 1;
+    const downloads = await this.client.getDownloadLinks(subjectId, season, episode, detailPath, options);
+    return movieboxDownloadResultToExtraction(descriptor, downloads);
+  }
+}
+
+// Backward compatibility - factory function
+export function createMovieboxSource(client?: MovieboxSourceClient): MediaSource {
+  return new MovieboxMediaSource(client);
 }
