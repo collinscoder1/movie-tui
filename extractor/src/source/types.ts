@@ -7,6 +7,7 @@ export type MediaType = 'movie' | 'tv';
 export interface SourceEpisode {
   episode_number: number;
   name?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface SourceTvSeasonInfo {
@@ -40,12 +41,18 @@ export interface MediaSourceOptions {
   signal?: AbortSignal;
 }
 
+export interface ShowDetailsResult {
+  name: string;
+  seasons: Array<{ season_number: number; episode_count?: number }>;
+  metadata?: Record<string, unknown>;
+}
+
 export interface MediaSource {
   searchByName(type: MediaType, query: string): Promise<SearchResult[]>;
   describeFromUrl(url: string): Promise<UrlMediaInfo>;
   describeFromTmdb(type: MediaType, tmdbId: string): Promise<SourceMediaInfo>;
   fetchSeasonEpisodes(tmdbId: string, season: number): Promise<SourceEpisode[]>;
-  fetchShowDetails(tmdbId: string): Promise<{ name: string; seasons: Array<{ season_number: number; episode_count?: number }> }>;
+  fetchShowDetails(tmdbId: string): Promise<ShowDetailsResult>;
   fetchMovieMetadata(tmdbId: string): Promise<{ title: string }>;
   fetchDownloads(descriptor: EpisodeDescriptor, options?: MediaSourceOptions): Promise<ExtractionResult>;
 }

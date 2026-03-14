@@ -40,11 +40,12 @@ async function main(): Promise<void> {
     // STEP 4: Select source provider
     const sourceKey = await select({
       message: 'Select content source:',
-      options: [
-        { value: 'vidsrc', label: 'VidSrc (vidsrc.vip)' },
-        { value: 'moviebox', label: 'Moviebox' }
-      ]
-    });
+    options: [
+      { value: 'vidsrc', label: 'VidSrc (vidsrc.vip)' },
+      { value: 'moviebox', label: 'Moviebox' },
+      { value: 'wco', label: 'WCO (wcoflix.tv)' }
+    ]
+  });
 
     if (isCancel(sourceKey)) {
       outro('Operation canceled.');
@@ -55,20 +56,24 @@ async function main(): Promise<void> {
     const source = createSource(sourceKey as SourceKey);
 
     // STEP 5: Media search mode (some modes may not work with all sources)
-    const modeOptions = [
+    const modeOptions: Array<{ value: SearchMode; label: string }> = [
       { value: 'url', label: 'Provide a URL' },
       { value: 'tmdb', label: 'Lookup by TMDb ID' },
       { value: 'name', label: 'Search by name' }
     ];
 
-    // URL mode doesn't work with moviebox
-    if (sourceKey === 'moviebox') {
-      modeOptions.shift(); // Remove URL option
-    }
+    const unsupportedModes: Partial<Record<SourceKey, SearchMode[]>> = {
+      moviebox: ['url'],
+      wco: ['tmdb']
+    };
+
+    const filteredModes = modeOptions.filter((option) =>
+      !(unsupportedModes[sourceKey as SourceKey] ?? []).includes(option.value)
+    );
 
     const mode = await select({
       message: 'How would you like to locate the media?',
-      options: modeOptions
+      options: filteredModes
     });
 
     if (isCancel(mode)) {
@@ -197,14 +202,15 @@ async function getSeasonInfo(mode: SearchMode, source: MediaSource): Promise<Sea
     }
     const info = await source.describeFromUrl(value);
     if (info.type === 'movie') {
-      return { type: 'movie', tmdbId: info.tmdbId, title: info.title };
+      return { type: 'movie', tmdbId: info.tmdbId, title: info.title, metadata: info.metadata };
     }
     return {
       type: 'tv',
       tmdbId: info.tmdbId,
       title: info.title,
       seasonNumber: info.season ?? info.seasonNumber,
-      episodes: info.episodes
+      episodes: info.episodes,
+      metadata: info.metadata
     };
   }
 
@@ -250,18 +256,26 @@ async function getSeasonInfo(mode: SearchMode, source: MediaSource): Promise<Sea
 
   if (mediaType === 'movie') {
     const details = await source.fetchMovieMetadata(tmdbId);
-    return { type: 'movie', tmdbId, title: details.title };
+    return { type: 'movie', tmdbId, title: details.title, metadata: (details as any).metadata };
   }
 
   const show = await source.fetchShowDetails(tmdbId);
   const seasonNumber = await chooseSeason(show.seasons);
   const episodes = await source.fetchSeasonEpisodes(tmdbId, seasonNumber);
+  
+  const episodeMetadata = episodes.map(ep => ({
+    episode_number: ep.episode_number,
+    name: ep.name,
+    metadata: ep.metadata
+  }));
+  
   return {
     type: 'tv',
     tmdbId,
     title: show.name,
     seasonNumber,
-    episodes
+    episodes: episodeMetadata,
+    metadata: show.metadata
   };
 }
 
