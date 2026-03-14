@@ -1,5 +1,4 @@
 import { getSeriesDetail, getVideoInfo, searchSeries } from '../../../wco/index.js';
-import { cfFetch } from '../../../wco/curl-fetch.js';
 const defaultClient = {
     searchSeries,
     getSeriesDetail,
@@ -18,84 +17,110 @@ function resolveSeriesUrl(value) {
     const trimmed = value.replace(/^\/+/, '');
     return `${WCO_BASE_URL}/${trimmed}`;
 }
-function parseEpisodeTitle(title) {
+function parseEpisodeNumber(title) {
     const titleLower = title.toLowerCase();
-    // Pattern: "Season 2 Episode 5" or "S2E5" or "S2 E5"
-    const seasonEpisodeMatch = titleLower.match(/(?:season\s*(\d+)|s(\d+))\s*(?:episode\s*|e\s*)(\d+)/i);
-    if (seasonEpisodeMatch) {
-        const season = parseInt(seasonEpisodeMatch[1] || seasonEpisodeMatch[2], 10);
-        const episode = parseInt(seasonEpisodeMatch[3], 10);
-        return { season, episode };
-    }
-    // Pattern: "Season 2 Ep 5" or "S2 Ep5"
-    const seasonEpMatch = titleLower.match(/(?:season\s*(\d+)|s(\d+))\s*ep\s*(\d+)/i);
-    if (seasonEpMatch) {
-        const season = parseInt(seasonEpMatch[1] || seasonEpMatch[2], 10);
-        const episode = parseInt(seasonEpMatch[3], 10);
-        return { season, episode };
-    }
-    // Pattern: "Episode 5" (no season specified = season 1)
-    const episodeOnlyMatch = titleLower.match(/episode\s*(\d+)/i);
-    if (episodeOnlyMatch) {
-        return { season: 1, episode: parseInt(episodeOnlyMatch[1], 10) };
-    }
-    // Pattern: "Ep 5"
-    const epOnlyMatch = titleLower.match(/ep\s*(\d+)/i);
-    if (epOnlyMatch) {
-        return { season: 1, episode: parseInt(epOnlyMatch[1], 10) };
-    }
-    // Default to season 1, episode based on position
-    return { season: 1, episode: 1 };
+    // "Season X Episode Y" or "SXEY"
+    const seasonEp = titleLower.match(/(?:season\s*\d+|s\d+)\s*(?:episode\s*|e\s*)(\d+)/i);
+    if (seasonEp)
+        return parseInt(seasonEp[1], 10);
+    // "Episode X" or "Ep X"
+    const epOnly = titleLower.match(/(?:episode|ep)\s*(\d+)/i);
+    if (epOnly)
+        return parseInt(epOnly[1], 10);
+    return 0;
 }
-function parseSeasonNumberFromTitle(title, url) {
+function parseSeasonFromTitle(title) {
     const titleLower = title.toLowerCase();
-    const patterns = [
-        /season\s*(\d+)/i,
-        /\bs(\d+)\b/i,
-        /(\d+)(?:st|nd|rd|th)\s*season/i,
-    ];
-    for (const pattern of patterns) {
-        const match = titleLower.match(pattern);
-        if (match) {
-            return parseInt(match[1], 10);
+    const match = titleLower.match(/(?:season\s*(\d+)|s(\d+)\s*(?:episode|ep|e))/i);
+    if (match)
+        return parseInt(match[1] || match[2], 10);
+    return null;
+}
+function isMovie(title) {
+    return /movie/i.test(title) && !/episode/i.test(title);
+}
+function isRecap(title) {
+    return /recap/i.test(title);
+}
+function extractArcName(title) {
+    if (isMovie(title) || isRecap(title))
+        return null;
+    // Pattern: "Show: Arc Name Episode X"
+    const colonMatch = title.match(/:\s*([^:]+?)(?:\s+(?:Episode|Ep)\b)/i);
+    if (colonMatch) {
+        const arc = colonMatch[1].trim();
+        if (!arc.match(/^(English|Dubbed|Subbed|HD|FullHD|4K)$/i)) {
+            return arc;
         }
     }
-    const urlPatterns = [
-        /season-(\d+)/i,
-        /-s(\d+)-/i,
-        /-s(\d+)$/i,
-    ];
-    const urlLower = url.toLowerCase();
-    for (const pattern of urlPatterns) {
-        const match = urlLower.match(pattern);
-        if (match) {
-            return parseInt(match[1], 10);
-        }
-    }
-    return 1;
+    return null;
 }
 function createSeasonMetadata(detail) {
-    return {
-        detailUrl: detail.url,
-        episodes: detail.episodes.map((episode) => {
-            const parsed = parseEpisodeTitle(episode.title);
-            return {
-                season: parsed.season,
-                episode: parsed.episode,
-                url: episode.url,
-                title: episode.title
-            };
-        })
-    };
+    const episodes = detail.episodes.map((episode) => {
+        const season = parseSeasonFromTitle(episode.title);
+        const episodeNum = parseEpisodeNumber(episode.title);
+        const arc = extractArcName(episode.title);
+        const movie = isMovie(episode.title);
+        const recap = isRecap(episode.title);
+        return {
+            season: season || 1,
+            episode: episodeNum || 1,
+            url: episode.url,
+            title: episode.title,
+            arc,
+            isMovie: movie,
+            isRecap: recap
+        };
+    });
+    // Apply arc-based season detection if needed
+    const explicitSeasons = new Set(episodes.filter(p => !p.isMovie && !p.isRecap && parseSeasonFromTitle(p.title) !== null)
+        .map(p => p.season));
+    if (explicitSeasons.size <= 1) {
+        const arcs = new Map();
+        const noArc = [];
+        for (const ep of episodes) {
+            if (ep.isMovie || ep.isRecap) {
+                ep.season = 0;
+            }
+            else if (ep.arc) {
+                const list = arcs.get(ep.arc) || [];
+                list.push(ep);
+                arcs.set(ep.arc, list);
+            }
+            else {
+                noArc.push(ep);
+            }
+        }
+        if (arcs.size >= 1 && noArc.length > 0) {
+            for (const ep of noArc) {
+                ep.season = 1;
+            }
+            const sortedArcs = Array.from(arcs.entries())
+                .sort((a, b) => {
+                const minA = Math.min(...a[1].map(e => episodes.findIndex(ep => ep.url === e.url)));
+                const minB = Math.min(...b[1].map(e => episodes.findIndex(ep => ep.url === e.url)));
+                return minA - minB;
+            });
+            let seasonNum = 2;
+            for (const [_, arcEps] of sortedArcs) {
+                for (const ep of arcEps) {
+                    ep.season = seasonNum;
+                }
+                seasonNum++;
+            }
+        }
+    }
+    return { detailUrl: detail.url, episodes };
 }
 function groupEpisodesBySeason(episodes) {
     const seasonMap = new Map();
     for (const ep of episodes) {
+        if (ep.season === 0)
+            continue; // Skip movies
         const seasonEps = seasonMap.get(ep.season) || [];
         seasonEps.push(ep);
         seasonMap.set(ep.season, seasonEps);
     }
-    // Sort episodes within each season
     for (const [_, seasonEps] of seasonMap) {
         seasonEps.sort((a, b) => a.episode - b.episode);
     }
@@ -104,13 +129,12 @@ function groupEpisodesBySeason(episodes) {
 function detailToSeasonInfo(detail, seasonNumber) {
     const metadata = createSeasonMetadata(detail);
     const seasonMap = groupEpisodesBySeason(metadata.episodes);
-    // If multiple seasons detected, filter to requested season or first season
     let targetSeason = seasonNumber ?? 1;
     if (!seasonMap.has(targetSeason)) {
         targetSeason = Math.min(...seasonMap.keys());
     }
     const seasonEpisodes = seasonMap.get(targetSeason) || [];
-    const episodes = seasonEpisodes.map((ep, index) => ({
+    const episodes = seasonEpisodes.map((ep) => ({
         episode_number: ep.episode,
         name: ep.title,
         metadata: ep
@@ -124,48 +148,6 @@ function detailToSeasonInfo(detail, seasonNumber) {
         metadata: metadata
     };
 }
-function formatFileSize(bytes) {
-    if (bytes < 1024)
-        return `${bytes} B`;
-    if (bytes < 1024 * 1024)
-        return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024)
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-async function fetchVideoSize(url) {
-    try {
-        const response = await cfFetch(url, {
-            method: 'GET',
-            headers: {
-                'Range': 'bytes=0-0',
-                'Referer': 'https://embed.wcostream.com/',
-                'user-agent': USER_AGENT
-            }
-        });
-        const contentRange = response.headers.get('content-range');
-        if (contentRange) {
-            const match = contentRange.match(/bytes \d+-\d+\/(\d+)/);
-            if (match) {
-                const bytes = parseInt(match[1], 10);
-                if (!isNaN(bytes) && bytes > 0) {
-                    return formatFileSize(bytes);
-                }
-            }
-        }
-        const contentLength = response.headers.get('content-length');
-        if (contentLength) {
-            const bytes = parseInt(contentLength, 10);
-            if (!isNaN(bytes) && bytes > 0) {
-                return formatFileSize(bytes);
-            }
-        }
-    }
-    catch {
-        // Ignore errors, fall through to unknown
-    }
-    return 'Unknown';
-}
 const RESOLUTION_MAP = {
     'SD': '480',
     'HD': '720',
@@ -173,15 +155,10 @@ const RESOLUTION_MAP = {
 };
 async function buildDownloadEntries(info) {
     const entries = [];
-    const [sdSize, hdSize, fhdSize] = await Promise.all([
-        fetchVideoSize(info.url),
-        info.hdUrl ? fetchVideoSize(info.hdUrl) : Promise.resolve('Unknown'),
-        info.fullHdUrl ? fetchVideoSize(info.fullHdUrl) : Promise.resolve('Unknown')
-    ]);
     entries.push({
         format: 'MP4',
         resolution: RESOLUTION_MAP['SD'] ?? '480',
-        size: sdSize,
+        size: 'Unknown',
         url: info.url,
         headers: WCO_DOWNLOAD_HEADERS
     });
@@ -189,7 +166,7 @@ async function buildDownloadEntries(info) {
         entries.push({
             format: 'MP4',
             resolution: RESOLUTION_MAP['HD'] ?? '720',
-            size: hdSize,
+            size: 'Unknown',
             url: info.hdUrl,
             headers: WCO_DOWNLOAD_HEADERS
         });
@@ -198,7 +175,7 @@ async function buildDownloadEntries(info) {
         entries.push({
             format: 'MP4',
             resolution: RESOLUTION_MAP['Full HD'] ?? '1080',
-            size: fhdSize,
+            size: 'Unknown',
             url: info.fullHdUrl,
             headers: WCO_DOWNLOAD_HEADERS
         });
