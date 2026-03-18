@@ -1,5 +1,3 @@
-import type { EpisodeDescriptor, SearchResult } from '../search.js';
-import type { ExtractionResult, DownloadEntry } from '../extractor.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type MediaType = 'movie' | 'tv';
@@ -47,6 +45,54 @@ export interface ShowDetailsResult {
   metadata?: Record<string, unknown>;
 }
 
+// EpisodeDescriptor - used to describe what to download
+export interface EpisodeDescriptor {
+  type: MediaType;
+  tmdbId: string;
+  season: number | null;
+  episode: number | null;
+  description: string;
+  title: string;
+  metadata?: Record<string, unknown>;
+}
+
+// SearchResult - result from searching by name
+export interface SearchResult {
+  tmdbId: string;
+  title: string;
+  year: string;
+  metadata?: Record<string, unknown>;
+}
+
+// DownloadEntry - a single download option
+export interface DownloadEntry {
+  resolution: string | null;
+  format: string;
+  size: string;
+  url: string;
+  headers?: Record<string, string>;
+}
+
+// SubtitleEntry - a single subtitle option
+export interface SubtitleEntry {
+  lanName: string;
+  size: string;
+  url: string;
+  headers?: Record<string, string>;
+}
+
+// ExtractionResult - result from fetching download links
+export interface ExtractionResult {
+  type: MediaType;
+  tmdbId: string;
+  metadata: { title: string; year: string; episodeTitle?: string; releaseDate?: string };
+  friendlyName: string;
+  downloads: Record<string, DownloadEntry[]>;
+  subtitles: SubtitleEntry[];
+  downloadPage: string;
+}
+
+// MediaSource interface - implemented by all providers
 export interface MediaSource {
   searchByName(type: MediaType, query: string): Promise<SearchResult[]>;
   describeFromUrl(url: string): Promise<UrlMediaInfo>;
@@ -56,5 +102,3 @@ export interface MediaSource {
   fetchMovieMetadata(tmdbId: string): Promise<{ title: string }>;
   fetchDownloads(descriptor: EpisodeDescriptor, options?: MediaSourceOptions): Promise<ExtractionResult>;
 }
-
-export type { EpisodeDescriptor, SearchResult, ExtractionResult, DownloadEntry };

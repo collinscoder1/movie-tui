@@ -7,7 +7,7 @@ import { loadDefaultConfig, loadConfig, listConfigs, saveConfig, setDefaultConfi
 import { runConfigTui } from './config-tui.js';
 import { checkExistingDownloads, formatVerificationResults } from './file-checker.js';
 import { multiselect } from '@clack/prompts';
-import { parseEpisodeInput } from '../search.js';
+import { parseEpisodeInput } from '../source/index.js';
 import { SourceTvSeasonInfo, SourceMovieInfo, MediaType } from '../source/types.js';
 
 type ActionType = 'download' | 'verify' | 'undownloaded';

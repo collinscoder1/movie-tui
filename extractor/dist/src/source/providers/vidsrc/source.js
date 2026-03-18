@@ -1,5 +1,6 @@
-import { buildVidsrcUrl, fetchSeasonDetails, fetchTmdbMovie, fetchTmdbShow, searchTmdb } from '../../../search.js';
-import { extractVidsrcLinks, helpers } from '../../../extractor.js';
+import { buildVidsrcUrl } from './url-builder.js';
+import { extractVidsrcLinks, helpers } from './extractor.js';
+import { fetchSeasonDetails, fetchTmdbMovie, fetchTmdbShow, searchTmdb } from '../../tmdb.js';
 function normalizeEntries(episodes) {
     return episodes.map(ep => ({ episode_number: ep.episode_number, name: ep.name }));
 }

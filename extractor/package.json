@@ -13,12 +13,18 @@
     "test": "npm run build && node --test dist/test/index.test.js dist/test/download.test.js dist/test/moviebox/moviebox.test.js dist/test/moviebox/download.test.js dist/test/wco/client.test.js dist/test/wco/live.test.js dist/test/wco/download.test.js dist/test/source/wco/provider.test.js",
     "test:download": "npm run build && node --test dist/test/download.test.js",
     "tui": "npm run build && node dist/src/tui/index.js",
+    "tui:legacy": "npm run build && node dist/src/tui/index-clack.js",
     "config": "npm run build && node dist/src/tui/config-tui.js"
   },
   "dependencies": {
     "@clack/prompts": "^1.1.0",
+    "@ctrl/video-filename-parser": "^5.4.1",
+    "@inkjs/ui": "^2.0.0",
     "@supabase/supabase-js": "^2.96.0",
+    "@types/react": "^19.2.14",
     "cheerio": "^1.2.0",
+    "ink": "^6.8.0",
+    "react": "^19.2.4",
     "undici": "^7.24.1"
   },
   "devDependencies": {

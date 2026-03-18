@@ -1,5 +1,4 @@
-import type { EpisodeDescriptor, SearchResult } from '../search.js';
-import type { ExtractionResult } from '../extractor.js';
+import type { EpisodeDescriptor, SearchResult, ExtractionResult } from './types.js';
 import type {
   MediaSource,
   MediaSourceOptions,

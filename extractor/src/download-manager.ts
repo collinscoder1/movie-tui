@@ -1,4 +1,4 @@
-import type { DownloadEntry } from './extractor.js';
+import type { DownloadEntry } from './source/types.js';
 import { homedir } from 'node:os';
 
 export const DOWNLOAD_MANAGER_BASE = 'http://localhost:15151';

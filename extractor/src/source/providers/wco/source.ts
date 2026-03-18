@@ -1,14 +1,27 @@
-import type { EpisodeDescriptor, SearchResult } from '../../../search.js';
-import type { ExtractionResult, DownloadEntry } from '../../../extractor.js';
-import type { MediaSource, MediaSourceOptions, MediaType, SourceEpisode, SourceMediaInfo, SourceTvSeasonInfo, UrlMediaInfo, ShowDetailsResult } from '../../types.js';
-import { getSeriesDetail, getVideoInfo, searchSeries } from '../../../wco/index.js';
-import type { WcoSeriesDetail, WcoSeriesSummary, WcoVideoInfo } from '../../../wco/types.js';
+import type {
+  EpisodeDescriptor,
+  SearchResult,
+  ExtractionResult,
+  DownloadEntry,
+  MediaSource,
+  MediaSourceOptions,
+  MediaType,
+  SourceEpisode,
+  SourceMediaInfo,
+  SourceTvSeasonInfo,
+  UrlMediaInfo,
+  ShowDetailsResult
+} from '../../types.js';
+import { getSeriesDetail, getVideoInfo, searchSeries } from './index.js';
+import type { WcoSeriesDetail, WcoSeriesSummary, WcoVideoInfo } from './types.js';
+import { filenameParse } from '@ctrl/video-filename-parser';
 
 interface EpisodeMetadata {
   season: number;
   episode: number;
   url: string;
   title: string;
+  arc: string | null;
 }
 
 export interface WcoSeasonMetadata {
@@ -44,39 +57,13 @@ function resolveSeriesUrl(value: string): string {
   return `${WCO_BASE_URL}/${trimmed}`;
 }
 
-function parseEpisodeNumber(title: string): number {
-  const titleLower = title.toLowerCase();
-  
-  // "Season X Episode Y" or "SXEY"
-  const seasonEp = titleLower.match(/(?:season\s*\d+|s\d+)\s*(?:episode\s*|e\s*)(\d+)/i);
-  if (seasonEp) return parseInt(seasonEp[1], 10);
-  
-  // "Episode X" or "Ep X"
-  const epOnly = titleLower.match(/(?:episode|ep)\s*(\d+)/i);
-  if (epOnly) return parseInt(epOnly[1], 10);
-  
-  return 0;
-}
-
-function parseSeasonFromTitle(title: string): number | null {
-  const titleLower = title.toLowerCase();
-  const match = titleLower.match(/(?:season\s*(\d+)|s(\d+)\s*(?:episode|ep|e))/i);
-  if (match) return parseInt(match[1] || match[2], 10);
-  return null;
-}
-
 function isMovie(title: string): boolean {
-  return /movie/i.test(title) && !/episode/i.test(title);
-}
-
-function isRecap(title: string): boolean {
-  return /recap/i.test(title);
+  return (/movie/i.test(title) && !/episode/i.test(title)) || /recap/i.test(title);
 }
 
 function extractArcName(title: string): string | null {
-  if (isMovie(title) || isRecap(title)) return null;
-  
-  // Pattern: "Show: Arc Name Episode X"
+  if (isMovie(title)) return null;
+
   const colonMatch = title.match(/:\s*([^:]+?)(?:\s+(?:Episode|Ep)\b)/i);
   if (colonMatch) {
     const arc = colonMatch[1].trim();
@@ -84,109 +71,128 @@ function extractArcName(title: string): string | null {
       return arc;
     }
   }
-  
+
   return null;
 }
 
+function parseEpisodeTitle(title: string): { season: number; episode: number; arc: string | null } {
+  if (isMovie(title)) {
+    return { season: 0, episode: 0, arc: null };
+  }
+
+  const parsed = filenameParse(title, true);
+
+  let season = (parsed as { seasons?: number[] }).seasons?.[0] || null;
+  let episode = (parsed as { episodeNumbers?: number[] }).episodeNumbers?.[0] || 0;
+
+  if (!season) {
+    const seasonMatch = title.toLowerCase().match(/season\s*(\d+)/i);
+    if (seasonMatch) {
+      season = parseInt(seasonMatch[1], 10);
+    }
+  }
+
+  if (!episode) {
+    const epMatch = title.toLowerCase().match(/episode\s*(\d+)/i);
+    if (epMatch) {
+      episode = parseInt(epMatch[1], 10);
+    }
+  }
+
+  const arc = extractArcName(title);
+
+  return { season: season || 1, episode, arc };
+}
+
 function createSeasonMetadata(detail: WcoSeriesDetail): WcoSeasonMetadata {
-  const episodes = detail.episodes.map((episode) => {
-    const season = parseSeasonFromTitle(episode.title);
-    const episodeNum = parseEpisodeNumber(episode.title);
-    const arc = extractArcName(episode.title);
-    const movie = isMovie(episode.title);
-    const recap = isRecap(episode.title);
-    
-    return {
-      season: season || 1,
-      episode: episodeNum || 1,
-      url: episode.url,
-      title: episode.title,
-      arc,
-      isMovie: movie,
-      isRecap: recap
-    };
-  });
-  
-  // Apply arc-based season detection if needed
-  const explicitSeasons = new Set(
-    episodes.filter(p => !p.isMovie && !p.isRecap && parseSeasonFromTitle(p.title) !== null)
-      .map(p => p.season)
-  );
-  
-  if (explicitSeasons.size <= 1) {
-    const arcs = new Map<string, typeof episodes>();
-    const noArc: typeof episodes = [];
-    
-    for (const ep of episodes) {
-      if (ep.isMovie || ep.isRecap) {
-        ep.season = 0;
-      } else if (ep.arc) {
-        const list = arcs.get(ep.arc!) || [];
-        list.push(ep);
-        arcs.set(ep.arc!, list);
+  const parsed = detail.episodes.map((ep) => ({
+    ...parseEpisodeTitle(ep.title),
+    url: ep.url,
+    title: ep.title
+  }));
+
+  const explicitSeasons = new Set(parsed.filter(p => p.season > 1).map(p => p.season));
+
+  if (explicitSeasons.size === 0) {
+    const arcs = new Map<string, typeof parsed>();
+    const noArc: typeof parsed = [];
+
+    for (const p of parsed) {
+      if (p.season === 0) continue;
+      if (p.arc) {
+        const list = arcs.get(p.arc!) || [];
+        list.push(p);
+        arcs.set(p.arc!, list);
       } else {
-        noArc.push(ep);
+        noArc.push(p);
       }
     }
-    
-    if (arcs.size >= 1 && noArc.length > 0) {
-      for (const ep of noArc) {
-        ep.season = 1;
+
+    if (arcs.size > 0 && noArc.length > 0) {
+      for (const p of noArc) {
+        p.season = 1;
       }
-      
+
       const sortedArcs = Array.from(arcs.entries())
         .sort((a, b) => {
-          const minA = Math.min(...a[1].map(e => episodes.findIndex(ep => ep.url === e.url)));
-          const minB = Math.min(...b[1].map(e => episodes.findIndex(ep => ep.url === e.url)));
+          const minA = Math.min(...a[1].map(e => parsed.findIndex(p => p.url === e.url)));
+          const minB = Math.min(...b[1].map(e => parsed.findIndex(p => p.url === e.url)));
           return minA - minB;
         });
-      
+
       let seasonNum = 2;
       for (const [_, arcEps] of sortedArcs) {
-        for (const ep of arcEps) {
-          ep.season = seasonNum;
+        for (const p of arcEps) {
+          p.season = seasonNum;
         }
         seasonNum++;
       }
     }
   }
-  
-  return { detailUrl: detail.url, episodes };
+
+  return { detailUrl: detail.url, episodes: parsed };
 }
 
 function groupEpisodesBySeason(episodes: EpisodeMetadata[]): Map<number, EpisodeMetadata[]> {
-  const seasonMap = new Map<number, EpisodeMetadata[]>();
-  
+  const seasonMap = new Map<number, Map<number, EpisodeMetadata>>();
+
   for (const ep of episodes) {
-    if (ep.season === 0) continue; // Skip movies
-    const seasonEps = seasonMap.get(ep.season) || [];
-    seasonEps.push(ep);
-    seasonMap.set(ep.season, seasonEps);
+    if (ep.season === 0) continue;
+    if (ep.episode === 0) continue;
+
+    if (!seasonMap.has(ep.season)) {
+      seasonMap.set(ep.season, new Map());
+    }
+    const episodeMap = seasonMap.get(ep.season)!;
+
+    if (!episodeMap.has(ep.episode)) {
+      episodeMap.set(ep.episode, ep);
+    }
   }
-  
-  for (const [_, seasonEps] of seasonMap) {
-    seasonEps.sort((a, b) => a.episode - b.episode);
+
+  const result = new Map<number, EpisodeMetadata[]>();
+  for (const [season, epMap] of seasonMap) {
+    result.set(season, Array.from(epMap.values()).sort((a, b) => a.episode - b.episode));
   }
-  
-  return seasonMap;
+  return result;
 }
 
 function detailToSeasonInfo(detail: WcoSeriesDetail, seasonNumber?: number): SourceTvSeasonInfo {
   const metadata = createSeasonMetadata(detail);
   const seasonMap = groupEpisodesBySeason(metadata.episodes);
-  
+
   let targetSeason = seasonNumber ?? 1;
   if (!seasonMap.has(targetSeason)) {
     targetSeason = Math.min(...seasonMap.keys());
   }
-  
+
   const seasonEpisodes = seasonMap.get(targetSeason) || [];
   const episodes: SourceEpisode[] = seasonEpisodes.map((ep) => ({
     episode_number: ep.episode,
     name: ep.title,
     metadata: ep as unknown as Record<string, unknown>
   }));
-  
+
   return {
     type: 'tv',
     tmdbId: detail.url,
@@ -205,7 +211,7 @@ const RESOLUTION_MAP: Record<string, string> = {
 
 async function buildDownloadEntries(info: WcoVideoInfo): Promise<DownloadEntry[]> {
   const entries: DownloadEntry[] = [];
-  
+
   entries.push({
     format: 'MP4',
     resolution: RESOLUTION_MAP['SD'] ?? '480',
@@ -213,7 +219,7 @@ async function buildDownloadEntries(info: WcoVideoInfo): Promise<DownloadEntry[]
     url: info.url,
     headers: WCO_DOWNLOAD_HEADERS
   });
-  
+
   if (info.hdUrl) {
     entries.push({
       format: 'MP4',
@@ -223,7 +229,7 @@ async function buildDownloadEntries(info: WcoVideoInfo): Promise<DownloadEntry[]
       headers: WCO_DOWNLOAD_HEADERS
     });
   }
-  
+
   if (info.fullHdUrl) {
     entries.push({
       format: 'MP4',
@@ -233,7 +239,7 @@ async function buildDownloadEntries(info: WcoVideoInfo): Promise<DownloadEntry[]
       headers: WCO_DOWNLOAD_HEADERS
     });
   }
-  
+
   return entries;
 }
 
@@ -254,7 +260,7 @@ function wcoOptionsFromMedia(options?: MediaSourceOptions) {
 export class WcoMediaSource implements MediaSource {
   constructor(private client: WcoSourceClient = defaultClient) {}
 
-  async searchByName(type: MediaType, query: string): Promise<SearchResult[]> {
+  async searchByName(_type: MediaType, query: string): Promise<SearchResult[]> {
     const summaries = await this.client.searchSeries(query);
     return summaries.map((entry) => ({
       tmdbId: entry.url,
@@ -284,10 +290,10 @@ export class WcoMediaSource implements MediaSource {
     const detail = await this.client.getSeriesDetail(tmdbId);
     const metadata = createSeasonMetadata(detail);
     const seasonMap = groupEpisodesBySeason(metadata.episodes);
-    
+
     const seasonEpisodes = seasonMap.get(season) || [];
-    return seasonEpisodes.map((ep) => ({ 
-      episode_number: ep.episode, 
+    return seasonEpisodes.map((ep) => ({
+      episode_number: ep.episode,
       name: ep.title,
       metadata: ep as unknown as Record<string, unknown>
     }));
@@ -297,14 +303,14 @@ export class WcoMediaSource implements MediaSource {
     const detail = await this.client.getSeriesDetail(tmdbId);
     const metadata = createSeasonMetadata(detail);
     const seasonMap = groupEpisodesBySeason(metadata.episodes);
-    
+
     const seasons = Array.from(seasonMap.entries())
       .map(([seasonNum, episodes]) => ({
         season_number: seasonNum,
         episode_count: episodes.length
       }))
       .sort((a, b) => a.season_number - b.season_number);
-    
+
     return {
       name: detail.title,
       seasons,

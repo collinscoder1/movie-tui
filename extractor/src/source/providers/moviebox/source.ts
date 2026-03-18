@@ -1,5 +1,5 @@
-import { getDownloadLinks, getSubjectDetail, searchSubjects } from '../../../moviebox/index.js';
-import type { SearchOptions, MovieboxSearchResult } from '../../../moviebox/index.js';
+import { getDownloadLinks, getSubjectDetail, searchSubjects } from './index.js';
+import type { SearchOptions, MovieboxSearchResult } from './index.js';
 import type {
   MovieboxDownloadEntry,
   MovieboxDownloadResult,
@@ -8,10 +8,12 @@ import type {
   MovieboxSubjectType,
   MovieboxSubtitleEntry,
   SubjectSummary
-} from '../../../moviebox/types.js';
-import type { EpisodeDescriptor, SearchResult } from '../../../search.js';
-import type { ExtractionResult, DownloadEntry } from '../../../extractor.js';
+} from './types.js';
 import type {
+  EpisodeDescriptor,
+  SearchResult,
+  ExtractionResult,
+  DownloadEntry,
   MediaSource,
   MediaSourceOptions,
   MediaType,
@@ -55,7 +57,6 @@ function seasonToEpisodes(season: { episodes: Array<{ episode: number; title?: s
 }
 
 function detailToSourceMedia(detail: MovieboxSubjectDetail): SourceMediaInfo {
-  // Use metadata title if available (clean title without season range)
   const cleanTitle = (detail.metadata?.title as string) ?? detail.title;
   const metadata = {
     subjectId: detail.subjectId,
@@ -114,10 +115,11 @@ function movieboxDownloadResultToExtraction(
   descriptor: EpisodeDescriptor,
   result: MovieboxDownloadResult
 ): ExtractionResult {
-  const episodeTitle = descriptor.metadata?.episodeTitle ?? `Episode ${descriptor.episode ?? 0}`;
-  const releaseDate = String(descriptor.metadata?.releaseDate ?? 'Unknown');
+  const episodeTitleRaw = descriptor.metadata?.episodeTitle;
+  const episodeTitle = typeof episodeTitleRaw === 'string' ? episodeTitleRaw : `Episode ${descriptor.episode ?? 0}`;
+  const releaseDateRaw = descriptor.metadata?.releaseDate;
+  const releaseDate = typeof releaseDateRaw === 'string' ? releaseDateRaw : 'Unknown';
   const year = parseReleaseYear(releaseDate);
-  // Use clean title from metadata if available
   const cleanTitle = (descriptor.metadata?.title as string) ?? descriptor.title;
   const metadata = descriptor.type === 'movie'
     ? { title: cleanTitle, year }
@@ -149,7 +151,6 @@ function movieboxDownloadResultToExtraction(
 }
 
 function buildShowDetails(detail: MovieboxSubjectDetail) {
-  // Use metadata title if available (clean title without season range like "S1-S6")
   const cleanTitle = (detail.metadata?.title as string) ?? detail.title;
   return {
     name: cleanTitle,
@@ -160,7 +161,6 @@ function buildShowDetails(detail: MovieboxSubjectDetail) {
   };
 }
 
-// Default client implementation
 const defaultClient: MovieboxSourceClient = {
   searchSubjects,
   getSubjectDetail,
@@ -189,7 +189,7 @@ export class MovieboxMediaSource implements MediaSource {
     throw new Error('Moviebox URLs are not supported yet');
   }
 
-  async describeFromTmdb(type: MediaType, tmdbId: string): Promise<SourceMediaInfo> {
+  async describeFromTmdb(_type: MediaType, tmdbId: string): Promise<SourceMediaInfo> {
     const detail = await this.client.getSubjectDetail(tmdbId);
     return detailToSourceMedia(detail);
   }
@@ -224,7 +224,6 @@ export class MovieboxMediaSource implements MediaSource {
   }
 }
 
-// Backward compatibility - factory function
 export function createMovieboxSource(client?: MovieboxSourceClient): MediaSource {
   return new MovieboxMediaSource(client);
 }

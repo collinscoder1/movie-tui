@@ -1,4 +1,4 @@
-import { getDownloadLinks, getSubjectDetail, searchSubjects } from '../../../moviebox/index.js';
+import { getDownloadLinks, getSubjectDetail, searchSubjects } from './index.js';
 const subjectTypeMap = {
     movie: 1,
     tv: 2
@@ -20,7 +20,6 @@ function seasonToEpisodes(season) {
     }));
 }
 function detailToSourceMedia(detail) {
-    // Use metadata title if available (clean title without season range)
     const cleanTitle = detail.metadata?.title ?? detail.title;
     const metadata = {
         subjectId: detail.subjectId,
@@ -72,10 +71,11 @@ function groupDownloads(entries) {
     }, {});
 }
 function movieboxDownloadResultToExtraction(descriptor, result) {
-    const episodeTitle = descriptor.metadata?.episodeTitle ?? `Episode ${descriptor.episode ?? 0}`;
-    const releaseDate = String(descriptor.metadata?.releaseDate ?? 'Unknown');
+    const episodeTitleRaw = descriptor.metadata?.episodeTitle;
+    const episodeTitle = typeof episodeTitleRaw === 'string' ? episodeTitleRaw : `Episode ${descriptor.episode ?? 0}`;
+    const releaseDateRaw = descriptor.metadata?.releaseDate;
+    const releaseDate = typeof releaseDateRaw === 'string' ? releaseDateRaw : 'Unknown';
     const year = parseReleaseYear(releaseDate);
-    // Use clean title from metadata if available
     const cleanTitle = descriptor.metadata?.title ?? descriptor.title;
     const metadata = descriptor.type === 'movie'
         ? { title: cleanTitle, year }
@@ -106,7 +106,6 @@ function movieboxDownloadResultToExtraction(descriptor, result) {
     };
 }
 function buildShowDetails(detail) {
-    // Use metadata title if available (clean title without season range like "S1-S6")
     const cleanTitle = detail.metadata?.title ?? detail.title;
     return {
         name: cleanTitle,
@@ -116,7 +115,6 @@ function buildShowDetails(detail) {
         }))
     };
 }
-// Default client implementation
 const defaultClient = {
     searchSubjects,
     getSubjectDetail,
@@ -143,7 +141,7 @@ export class MovieboxMediaSource {
     async describeFromUrl() {
         throw new Error('Moviebox URLs are not supported yet');
     }
-    async describeFromTmdb(type, tmdbId) {
+    async describeFromTmdb(_type, tmdbId) {
         const detail = await this.client.getSubjectDetail(tmdbId);
         return detailToSourceMedia(detail);
     }
@@ -173,7 +171,6 @@ export class MovieboxMediaSource {
         return movieboxDownloadResultToExtraction(descriptor, downloads);
     }
 }
-// Backward compatibility - factory function
 export function createMovieboxSource(client) {
     return new MovieboxMediaSource(client);
 }

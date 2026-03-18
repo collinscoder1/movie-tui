@@ -127,7 +127,7 @@ export async function chooseEpisodes(available, season, episodeTitles) {
     if (isCancel(raw) || !raw) {
         throw new Error('Canceled by user.');
     }
-    const { parseEpisodeInput } = await import('../search.js');
+    const { parseEpisodeInput } = await import('../source/index.js');
     const parsed = parseEpisodeInput(raw, available);
     if (!parsed.length) {
         throw new Error('No valid episodes specified.');

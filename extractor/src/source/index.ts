@@ -1,13 +1,20 @@
 export * from './types.js';
 export { SourceService } from './service.js';
 
-// Export provider classes
-export { VidsrcMediaSource } from './providers/vidsrc/index.js';
-export { MovieboxMediaSource } from './providers/moviebox/index.js';
-export { WcoMediaSource } from './providers/wco/index.js';
+export { VidsrcMediaSource, createVidsrcSource, extractVidsrcLinks, helpers, parseVidsrcUrl, buildVidsrcUrl } from './providers/vidsrc/index.js';
+export { MovieboxMediaSource, createMovieboxSource } from './providers/moviebox/index.js';
+export { WcoMediaSource, createWcoSource } from './providers/wco/index.js';
 
-// Factory function for creating sources
+export { searchTmdb, fetchTmdbMovie, fetchTmdbShow, fetchSeasonDetails, resolveTmdbIdFromImdb } from './tmdb.js';
+export { parseEpisodeInput } from './utils/episode-parser.js';
+
 export type SourceKey = 'vidsrc' | 'moviebox' | 'wco';
+
+import { MediaSource } from './types.js';
+import { VidsrcMediaSource } from './providers/vidsrc/index.js';
+import { MovieboxMediaSource } from './providers/moviebox/index.js';
+import { WcoMediaSource } from './providers/wco/index.js';
+import { SourceService } from './service.js';
 
 export function createSource(key: SourceKey): MediaSource {
   switch (key) {
@@ -21,13 +28,6 @@ export function createSource(key: SourceKey): MediaSource {
       throw new Error(`Unknown source: ${key}`);
   }
 }
-
-// Backward compatibility - singleton service instance
-import { MediaSource } from './types.js';
-import { VidsrcMediaSource } from './providers/vidsrc/index.js';
-import { MovieboxMediaSource } from './providers/moviebox/index.js';
-import { WcoMediaSource } from './providers/wco/index.js';
-import { SourceService } from './service.js';
 
 export const sourceService = new SourceService('vidsrc');
 sourceService.registerSource('vidsrc', new VidsrcMediaSource());

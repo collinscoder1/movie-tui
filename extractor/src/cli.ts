@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { extractVidsrcLinks } from './extractor.js';
+import { extractVidsrcLinks } from './source/providers/vidsrc/extractor.js';
 
 async function main(): Promise<void> {
   const [target] = process.argv.slice(2);

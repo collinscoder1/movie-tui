@@ -1,6 +1,7 @@
-import { buildVidsrcUrl, EpisodeDescriptor, fetchSeasonDetails, fetchTmdbMovie, fetchTmdbShow, searchTmdb } from '../../../search.js';
-import { extractVidsrcLinks, helpers } from '../../../extractor.js';
-import { MediaSource, MediaSourceOptions, MediaType, UrlMediaInfo, SourceMediaInfo, SourceTvSeasonInfo } from '../../types.js';
+import { buildVidsrcUrl } from './url-builder.js';
+import { extractVidsrcLinks, helpers } from './extractor.js';
+import { MediaSource, MediaSourceOptions, MediaType, UrlMediaInfo, SourceMediaInfo, SourceTvSeasonInfo, SourceEpisode, EpisodeDescriptor } from '../../types.js';
+import { fetchSeasonDetails, fetchTmdbMovie, fetchTmdbShow, searchTmdb } from '../../tmdb.js';
 
 function normalizeEntries(episodes: Array<{ episode_number: number; name?: string }>): SourceTvSeasonInfo['episodes'] {
   return episodes.map(ep => ({ episode_number: ep.episode_number, name: ep.name }));
