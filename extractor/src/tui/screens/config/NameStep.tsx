@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select, TextInput } from '@inkjs/ui';
+import { TextInput } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { colors, symbols } from '../../theme.js';
 
 interface NameStepProps {
@@ -28,7 +29,7 @@ export function NameStep({ isCustom, onSelect, onCustomSubmit }: NameStepProps) 
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{'Choose a name:'}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           { label: '  default', value: 'default' },
           { label: '  high-quality', value: 'high-quality' },

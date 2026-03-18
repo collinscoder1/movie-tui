@@ -1,17 +1,15 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { Spinner } from '@inkjs/ui';
-import { DownloadItemStatus } from '../../download-core.js';
+import { DownloadItem, ItemStatus } from '../../stores/downloadStore.js';
 import { colors, symbols } from '../../theme.js';
 
 interface ProgressListProps {
-  items: DownloadItemStatus[];
-  currentIndex: number;
-  totalCount: number;
+  items: DownloadItem[];
   isProcessing: boolean;
 }
 
-function statusIcon(status: DownloadItemStatus['status']): string {
+function statusIcon(status: ItemStatus): string {
   switch (status) {
     case 'pending': return symbols.dot;
     case 'fetching': return symbols.ellipsis;
@@ -23,7 +21,7 @@ function statusIcon(status: DownloadItemStatus['status']): string {
   }
 }
 
-function statusColor(status: DownloadItemStatus['status']): string | undefined {
+function statusColor(status: ItemStatus): string | undefined {
   switch (status) {
     case 'success': return colors.success;
     case 'fail': return colors.error;
@@ -34,12 +32,14 @@ function statusColor(status: DownloadItemStatus['status']): string | undefined {
   }
 }
 
-export function ProgressList({ items, currentIndex, totalCount, isProcessing }: ProgressListProps) {
+export function ProgressList({ items, isProcessing }: ProgressListProps) {
+  const doneCount = items.filter(i => i.status === 'success' || i.status === 'fail' || i.status === 'skip').length;
+
   return (
     <Box flexDirection="column" paddingLeft={4}>
       {isProcessing && (
         <Box marginBottom={1}>
-          <Spinner label={`Processing ${currentIndex + 1}/${totalCount}...`} />
+          <Spinner label={`Processing ${doneCount + 1}/${items.length}...`} />
         </Box>
       )}
 

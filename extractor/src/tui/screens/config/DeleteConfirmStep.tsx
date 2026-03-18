@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { colors } from '../../theme.js';
 
 interface DeleteConfirmStepProps {
@@ -12,7 +12,7 @@ export function DeleteConfirmStep({ name, onConfirm }: DeleteConfirmStepProps) {
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold color={colors.warning}>{`Delete "${name}"?`}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           { label: '  Yes, delete', value: 'yes' },
           { label: '  No, cancel', value: 'no' },

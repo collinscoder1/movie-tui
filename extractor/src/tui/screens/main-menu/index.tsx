@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
-import { Select, Spinner } from '@inkjs/ui';
+import { Spinner } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { loadDefaultConfig, Config } from '../../../config.js';
 import { colors, symbols } from '../../theme.js';
 import { Header } from '../../components/Header.js';
@@ -77,7 +78,7 @@ export function MainMenu({ onSearch, onConfig }: MainMenuProps) {
       )}
 
       <Box paddingLeft={4}>
-        <Select
+        <SelectAll
           options={options}
           onChange={(value) => {
             if (value === 'search' && config) onSearch(config);

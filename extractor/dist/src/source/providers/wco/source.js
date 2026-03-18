@@ -66,8 +66,10 @@ function createSeasonMetadata(detail) {
         const arcs = new Map();
         const noArc = [];
         for (const p of parsed) {
-            if (p.season === 0)
+            if (p.season === 0) {
+                console.warn(`[WCO] Skipping movie entry: ${p.title}`);
                 continue;
+            }
             if (p.arc) {
                 const list = arcs.get(p.arc) || [];
                 list.push(p);
@@ -100,11 +102,16 @@ function createSeasonMetadata(detail) {
 }
 function groupEpisodesBySeason(episodes) {
     const seasonMap = new Map();
+    const skipped = [];
     for (const ep of episodes) {
-        if (ep.season === 0)
+        if (ep.season === 0) {
+            skipped.push(`${ep.title} (season 0)`);
             continue;
-        if (ep.episode === 0)
+        }
+        if (ep.episode === 0) {
+            skipped.push(`${ep.title} (episode 0)`);
             continue;
+        }
         if (!seasonMap.has(ep.season)) {
             seasonMap.set(ep.season, new Map());
         }
@@ -112,6 +119,10 @@ function groupEpisodesBySeason(episodes) {
         if (!episodeMap.has(ep.episode)) {
             episodeMap.set(ep.episode, ep);
         }
+    }
+    if (skipped.length > 0) {
+        const preview = skipped.slice(0, 5).join(', ');
+        console.warn(`[WCO] Skipped ${skipped.length} unparseable entries: ${preview}${skipped.length > 5 ? '...' : ''}`);
     }
     const result = new Map();
     for (const [season, epMap] of seasonMap) {

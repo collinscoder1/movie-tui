@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { symbols } from '../../theme.js';
 
 interface SourceStepProps {
@@ -11,7 +11,7 @@ export function SourceStep({ onSelect }: SourceStepProps) {
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{'Select content source:'}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           { label: '  VidSrc (vidsrc.vip)', value: 'vidsrc' },
           { label: '  Moviebox', value: 'moviebox' },

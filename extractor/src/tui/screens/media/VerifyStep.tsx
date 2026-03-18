@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { colors, symbols } from '../../theme.js';
 
 interface VerifyStepProps {
@@ -22,7 +22,7 @@ export function VerifyStep({ text, onBack }: VerifyStepProps) {
           );
         })}
       </Box>
-      <Select
+      <SelectAll
         options={[
           { label: `  ${symbols.arrowRight} Back to menu`, value: '_back' },
         ]}

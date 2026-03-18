@@ -1,6 +1,6 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { symbols } from '../../theme.js';
 const unsupportedModes = {
     moviebox: ['url'],
@@ -12,7 +12,7 @@ export function ModeStep({ sourceKey, onSelect }) {
         { label: '  Lookup by TMDb ID', value: 'tmdb' },
         { label: '  Search by name', value: 'name' },
     ].filter(opt => !(unsupportedModes[sourceKey] ?? []).includes(opt.value));
-    return (_jsxs(Box, { flexDirection: "column", paddingLeft: 4, children: [_jsx(Box, { marginBottom: 1, children: _jsx(Text, { bold: true, children: 'How to find media:' }) }), _jsx(Select, { options: [
+    return (_jsxs(Box, { flexDirection: "column", paddingLeft: 4, children: [_jsx(Box, { marginBottom: 1, children: _jsx(Text, { bold: true, children: 'How to find media:' }) }), _jsx(SelectAll, { options: [
                     ...modeOptions,
                     { label: `  ${symbols.arrowRight} Back`, value: '_back' },
                 ], onChange: onSelect })] }));

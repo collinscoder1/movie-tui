@@ -23,6 +23,7 @@ function statusColor(status) {
         default: return undefined;
     }
 }
-export function ProgressList({ items, currentIndex, totalCount, isProcessing }) {
-    return (_jsxs(Box, { flexDirection: "column", paddingLeft: 4, children: [isProcessing && (_jsx(Box, { marginBottom: 1, children: _jsx(Spinner, { label: `Processing ${currentIndex + 1}/${totalCount}...` }) })), _jsx(Box, { flexDirection: "column", marginBottom: 1, children: items.map((item, i) => (_jsxs(Box, { children: [_jsx(Text, { color: statusColor(item.status), children: `    ${statusIcon(item.status)}  ` }), _jsx(Text, { color: statusColor(item.status), children: item.descriptor.description }), item.message && (_jsx(Text, { dimColor: true, children: `  ${symbols.pointerSmall} ${item.message}` }))] }, i))) })] }));
+export function ProgressList({ items, isProcessing }) {
+    const doneCount = items.filter(i => i.status === 'success' || i.status === 'fail' || i.status === 'skip').length;
+    return (_jsxs(Box, { flexDirection: "column", paddingLeft: 4, children: [isProcessing && (_jsx(Box, { marginBottom: 1, children: _jsx(Spinner, { label: `Processing ${doneCount + 1}/${items.length}...` }) })), _jsx(Box, { flexDirection: "column", marginBottom: 1, children: items.map((item, i) => (_jsxs(Box, { children: [_jsx(Text, { color: statusColor(item.status), children: `    ${statusIcon(item.status)}  ` }), _jsx(Text, { color: statusColor(item.status), children: item.descriptor.description }), item.message && (_jsx(Text, { dimColor: true, children: `  ${symbols.pointerSmall} ${item.message}` }))] }, i))) })] }));
 }

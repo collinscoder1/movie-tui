@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { symbols } from '../../theme.js';
 
 interface FormatStepProps {
@@ -11,7 +11,7 @@ export function FormatStep({ onSelect }: FormatStepProps) {
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{'Preferred format:'}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           { label: '  MP4', value: 'MP4' },
           { label: '  MKV', value: 'MKV' },

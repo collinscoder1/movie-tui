@@ -1,9 +1,9 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { symbols } from '../../theme.js';
 export function EpisodesStep({ seasonNumber, episodes, onSelect }) {
-    return (_jsxs(Box, { flexDirection: "column", paddingLeft: 4, children: [_jsx(Box, { marginBottom: 1, children: _jsx(Text, { bold: true, children: `Season ${seasonNumber} - ${episodes.length} episodes:` }) }), _jsx(Select, { options: [
+    return (_jsxs(Box, { flexDirection: "column", paddingLeft: 4, children: [_jsx(Box, { marginBottom: 1, children: _jsx(Text, { bold: true, children: `Season ${seasonNumber} - ${episodes.length} episodes:` }) }), _jsx(SelectAll, { options: [
                     { label: '  Select all episodes', value: 'all' },
                     { label: '  Pick specific episodes (space to toggle)', value: 'select' },
                     { label: '  Enter episode range (e.g., 1-3,5)', value: 'custom' },

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { symbols } from '../../theme.js';
 
 interface MediaTypeStepProps {
@@ -11,7 +11,7 @@ export function MediaTypeStep({ onSelect }: MediaTypeStepProps) {
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{'Media type:'}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           { label: '  Movie', value: 'movie' },
           { label: '  TV Show', value: 'tv' },

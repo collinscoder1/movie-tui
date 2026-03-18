@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { symbols } from '../../theme.js';
 
 interface SeasonStepProps {
@@ -12,7 +12,7 @@ export function SeasonStep({ seasons, onSelect }: SeasonStepProps) {
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{'Select season:'}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           ...seasons
             .filter(s => s.season_number > 0)

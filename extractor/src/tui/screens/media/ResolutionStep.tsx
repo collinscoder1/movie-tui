@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { symbols } from '../../theme.js';
 
 interface ResolutionStepProps {
@@ -23,7 +23,6 @@ export function ResolutionStep({ isMovie, episodeCount, defaultResolution, onSel
       label: r.value === defaultRes ? `  ${r.label} [default]` : `  ${r.label}`,
       value: r.value,
     }));
-    // Move config default to the top
     if (defaultRes && resolutions.some(r => r.value === defaultRes)) {
       const idx = resolutions.findIndex(r => r.value === defaultRes);
       const [item] = resolutions.splice(idx, 1);
@@ -43,7 +42,7 @@ export function ResolutionStep({ isMovie, episodeCount, defaultResolution, onSel
           ? 'Select resolution:'
           : `Select resolution for ${episodeCount} episode(s):`}
       </Text></Box>
-      <Select
+      <SelectAll
         options={options}
         onChange={onSelect}
       />

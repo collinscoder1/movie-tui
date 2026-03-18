@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { SourceKey } from '../../../source/index.js';
 import { symbols } from '../../theme.js';
 
@@ -26,7 +26,7 @@ export function ModeStep({ sourceKey, onSelect }: ModeStepProps) {
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{'How to find media:'}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           ...modeOptions,
           { label: `  ${symbols.arrowRight} Back`, value: '_back' },

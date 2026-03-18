@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { symbols } from '../../theme.js';
 
 interface ActionStepProps {
@@ -12,7 +12,7 @@ export function ActionStep({ isMovie, onSelect }: ActionStepProps) {
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{'What would you like to do?'}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           { label: isMovie ? '  Download movie' : '  Download episodes', value: 'download' },
           { label: '  Verify existing downloads', value: 'verify' },

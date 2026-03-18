@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { colors, symbols, horizontalLine } from '../../theme.js';
 
 interface SummaryStepProps {
@@ -24,7 +24,7 @@ export function SummaryStep({ success, fail, skip, onDone }: SummaryStepProps) {
         <Text color={colors.warning}>{`    ${symbols.pointerSmall}  Skipped: ${skip}`}</Text>
       </Box>
       <Box marginTop={1}>
-        <Select
+        <SelectAll
           options={[
             { label: `  ${symbols.arrowRight} Back to main menu`, value: 'menu' },
           ]}

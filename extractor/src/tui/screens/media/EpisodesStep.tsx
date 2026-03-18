@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { SourceEpisode } from '../../../source/types.js';
 import { symbols } from '../../theme.js';
 
@@ -14,7 +14,7 @@ export function EpisodesStep({ seasonNumber, episodes, onSelect }: EpisodesStepP
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{`Season ${seasonNumber} - ${episodes.length} episodes:`}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           { label: '  Select all episodes', value: 'all' },
           { label: '  Pick specific episodes (space to toggle)', value: 'select' },

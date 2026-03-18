@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { symbols } from '../../theme.js';
 
 interface ConfigResolutionStepProps {
@@ -11,7 +11,7 @@ export function ConfigResolutionStep({ onSelect }: ConfigResolutionStepProps) {
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{'Preferred resolution:'}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           { label: '  1080p (Full HD)', value: '1080' },
           { label: '  720p (HD)', value: '720' },

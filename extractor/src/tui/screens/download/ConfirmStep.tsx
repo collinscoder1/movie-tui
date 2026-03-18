@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { EpisodeDescriptor } from '../../../source/index.js';
 import { symbols } from '../../theme.js';
 
@@ -23,7 +23,7 @@ export function ConfirmStep({ descriptors, onConfirm }: ConfirmStepProps) {
           <Text dimColor>{`    ... and ${descriptors.length - 10} more`}</Text>
         )}
       </Box>
-      <Select
+      <SelectAll
         options={[
           { label: `  ${symbols.check} Start downloading`, value: 'start' },
           { label: `  ${symbols.cross} Cancel`, value: 'cancel' },

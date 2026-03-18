@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { symbols } from '../../theme.js';
 
 interface SelectConfigStepProps {
@@ -15,7 +15,7 @@ export function SelectConfigStep({ title, configs, defaultName, showStar, onSele
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{title}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           ...configs.map(name => ({
             label: showStar

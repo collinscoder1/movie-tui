@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { DownloadEntry } from '../../../source/index.js';
 
 interface QualityPickStepProps {
@@ -16,7 +16,7 @@ export function QualityPickStep({ description, entries, onSelect }: QualityPickS
         {`Preferred quality not available for: ${description}`}
       </Text></Box>
       <Box marginBottom={1}><Text>{'Choose from available qualities:'}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           ...entries.map((e, i) => ({
             label: `  ${e.format} ${e.resolution || 'unknown'} - ${e.size}`,

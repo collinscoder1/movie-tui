@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select, TextInput } from '@inkjs/ui';
+import { TextInput } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { colors, symbols } from '../../theme.js';
 
 interface PathStepProps {
@@ -28,7 +29,7 @@ export function PathStep({ isInput, onSelect, onInputSubmit }: PathStepProps) {
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{'Download path:'}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           { label: '  Use AB Download Manager default', value: 'default' },
           { label: '  Specify custom path', value: 'custom' },

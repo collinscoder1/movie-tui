@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { symbols } from '../../theme.js';
 
 interface SubtitleStepProps {
@@ -12,7 +12,7 @@ export function SubtitleStep({ configName, onSelect }: SubtitleStepProps) {
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{`Configure "${configName}": Subtitle language`}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           { label: '  No subtitles', value: 'none' },
           { label: '  English', value: 'English' },

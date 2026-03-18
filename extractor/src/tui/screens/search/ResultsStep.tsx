@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Select } from '@inkjs/ui';
+import { SelectAll } from '../../components/SelectAll.js';
 import { SearchResult } from '../../../source/index.js';
 import { symbols } from '../../theme.js';
 
@@ -13,7 +13,7 @@ export function ResultsStep({ results, onSelect }: ResultsStepProps) {
   return (
     <Box flexDirection="column" paddingLeft={4}>
       <Box marginBottom={1}><Text bold>{`Found ${results.length} results:`}</Text></Box>
-      <Select
+      <SelectAll
         options={[
           ...results.map((r, i) => ({
             label: `  ${r.title} (${r.year})`,
