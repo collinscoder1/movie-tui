@@ -31,7 +31,8 @@ async function main() {
             options: [
                 { value: 'vidsrc', label: 'VidSrc (vidsrc.vip)' },
                 { value: 'moviebox', label: 'Moviebox' },
-                { value: 'wco', label: 'WCO (wcoflix.tv)' }
+                { value: 'wco', label: 'WCO (wcoflix.tv)' },
+                { value: 'anikai', label: 'AnimeKAI (anikai.to)' }
             ]
         });
         if (isCancel(sourceKey)) {
@@ -48,7 +49,8 @@ async function main() {
         ];
         const unsupportedModes = {
             moviebox: ['url'],
-            wco: ['tmdb']
+            wco: ['tmdb'],
+            anikai: ['tmdb']
         };
         const filteredModes = modeOptions.filter((option) => !(unsupportedModes[sourceKey] ?? []).includes(option.value));
         const mode = await select({
@@ -159,7 +161,7 @@ async function main() {
 }
 async function getSeasonInfo(mode, source) {
     if (mode === 'url') {
-        const value = await text({ message: 'Enter the vidSrc URL:' });
+        const value = await text({ message: 'Enter the source URL:' });
         if (isCancel(value) || !value) {
             throw new Error('Canceled by user.');
         }

@@ -7,6 +7,7 @@ export function SourceStep({ onSelect }) {
                     { label: '  VidSrc (vidsrc.vip)', value: 'vidsrc' },
                     { label: '  Moviebox', value: 'moviebox' },
                     { label: '  WCO (wcoflix.tv)', value: 'wco' },
+                    { label: '  AnimeKAI (anikai.to)', value: 'anikai' },
                     { label: `  ${symbols.arrowRight} Back`, value: '_back' },
                 ], onChange: onSelect })] }));
 }

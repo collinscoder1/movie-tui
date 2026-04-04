@@ -5,6 +5,7 @@ import { symbols } from '../../theme.js';
 const unsupportedModes = {
     moviebox: ['url'],
     wco: ['tmdb'],
+    anikai: ['tmdb'],
 };
 export function ModeStep({ sourceKey, onSelect }) {
     const modeOptions = [

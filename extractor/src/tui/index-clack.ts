@@ -43,7 +43,8 @@ async function main(): Promise<void> {
     options: [
       { value: 'vidsrc', label: 'VidSrc (vidsrc.vip)' },
       { value: 'moviebox', label: 'Moviebox' },
-      { value: 'wco', label: 'WCO (wcoflix.tv)' }
+      { value: 'wco', label: 'WCO (wcoflix.tv)' },
+      { value: 'anikai', label: 'AnimeKAI (anikai.to)' }
     ]
   });
 
@@ -64,7 +65,8 @@ async function main(): Promise<void> {
 
     const unsupportedModes: Partial<Record<SourceKey, SearchMode[]>> = {
       moviebox: ['url'],
-      wco: ['tmdb']
+      wco: ['tmdb'],
+      anikai: ['tmdb']
     };
 
     const filteredModes = modeOptions.filter((option) =>
@@ -196,7 +198,7 @@ async function main(): Promise<void> {
 
 async function getSeasonInfo(mode: SearchMode, source: MediaSource): Promise<SeasonInfo | MovieInfo | null> {
   if (mode === 'url') {
-    const value = await text({ message: 'Enter the vidSrc URL:' });
+    const value = await text({ message: 'Enter the source URL:' });
     if (isCancel(value) || !value) {
       throw new Error('Canceled by user.');
     }

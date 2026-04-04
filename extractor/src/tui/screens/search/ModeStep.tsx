@@ -9,6 +9,7 @@ type SearchMode = 'url' | 'tmdb' | 'name';
 const unsupportedModes: Partial<Record<SourceKey, SearchMode[]>> = {
   moviebox: ['url'],
   wco: ['tmdb'],
+  anikai: ['tmdb'],
 };
 
 interface ModeStepProps {
