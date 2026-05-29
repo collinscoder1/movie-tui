@@ -1,7 +1,7 @@
 import test, { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { getSeriesDetail, getVideoInfo } from '../../src/wco/index.js';
-import { cfFetch, clearCookies, getCookieJar } from '../../src/wco/curl-fetch.js';
+import { cfFetch, clearCookies, applyWcoEnvCookies, getCookieJar } from '../../src/wco/curl-fetch.js';
 
 const LIVE_DETAIL_URL = 'https://www.wcoflix.tv/anime/classroom-of-the-elite/season=all&lang=dub';
 
@@ -28,6 +28,16 @@ function isWcoCdnUrl(url: string): boolean {
 
 const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
 
+const PAGE_HEADERS = {
+  accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+  'user-agent': USER_AGENT
+};
+
+function resetWcoSession(): void {
+  clearCookies();
+  applyWcoEnvCookies();
+}
+
 async function fetchVideoChunk(url: string): Promise<{ response: Response; data: Uint8Array }> {
   const response = await cfFetch(url, {
     headers: {
@@ -45,9 +55,42 @@ async function fetchVideoChunk(url: string): Promise<{ response: Response; data:
   return { response, data };
 }
 
+test('WCO index.php announcement gate does not block getvidlink on video-js.php', async (t) => {
+  try {
+    resetWcoSession();
+    const detail = await getSeriesDetail(LIVE_DETAIL_URL);
+    assert.ok(detail.episodes.length > 0, 'series should have episodes');
+
+    const episodeUrl = detail.episodes[0].url;
+    const episodeHtml = await (await cfFetch(episodeUrl, { headers: PAGE_HEADERS })).text();
+    if (/Just a moment|challenges\.cloudflare\.com/i.test(episodeHtml)) {
+      t.skip('Episode page blocked by Cloudflare (set WCO_COOKIE or WCO_CF_CLEARANCE to run this test)');
+      return;
+    }
+
+    const iframeMatch = episodeHtml.match(/<iframe[^>]+src="([^"]*embed[^"]*)"/i);
+    assert.ok(iframeMatch, 'episode page should expose embed iframe');
+    const indexEmbedUrl = iframeMatch[1];
+
+    const indexHtml = await (await cfFetch(indexEmbedUrl, {
+      headers: { ...PAGE_HEADERS, referer: episodeUrl }
+    })).text();
+
+    assert.match(indexHtml, /Announcement/i, 'index.php should show announcement interstitial');
+    assert.ok(!indexHtml.includes('getvidlink.php'), 'announcement page should not contain getvidlink');
+    assert.ok(indexHtml.includes('video-js.php'), 'announcement should redirect to video-js.php');
+
+    const info = await getVideoInfo(episodeUrl);
+    assert.ok(info.url.startsWith('http'), 'extraction should succeed after video-js hop');
+    assert.ok(isWcoCdnUrl(info.url), 'resolved URL should use WCO CDN');
+  } catch (err) {
+    handleNetworkError(t, err);
+  }
+});
+
 test('WCO download extraction returns multiple qualities with valid CDN URLs', async (t) => {
   try {
-    clearCookies();
+    resetWcoSession();
     const detail = await getSeriesDetail(LIVE_DETAIL_URL);
     assert.ok(detail.episodes.length > 0, 'series should have episodes');
 
@@ -77,7 +120,7 @@ test('WCO download extraction returns multiple qualities with valid CDN URLs', a
 
 test('WCO download URLs use correct CDN domain structure', async (t) => {
   try {
-    clearCookies();
+    resetWcoSession();
     const detail = await getSeriesDetail(LIVE_DETAIL_URL);
     assert.ok(detail.episodes.length > 0, 'series should have episodes');
 
@@ -100,7 +143,7 @@ test('WCO download URLs use correct CDN domain structure', async (t) => {
 
 test('WCO download different quality URLs are different', async (t) => {
   try {
-    clearCookies();
+    resetWcoSession();
     const detail = await getSeriesDetail(LIVE_DETAIL_URL);
     assert.ok(detail.episodes.length > 0, 'series should have episodes');
 
@@ -127,7 +170,7 @@ test('WCO download different quality URLs are different', async (t) => {
 
 test('WCO actual video download fetches valid MP4 chunks', async (t) => {
   try {
-    clearCookies();
+    resetWcoSession();
     const detail = await getSeriesDetail(LIVE_DETAIL_URL);
     assert.ok(detail.episodes.length > 0, 'series should have episodes');
 
@@ -193,7 +236,7 @@ test('WCO actual video download fetches valid MP4 chunks', async (t) => {
 
 test('WCO multiple quality downloads return different video data', async (t) => {
   try {
-    clearCookies();
+    resetWcoSession();
     const detail = await getSeriesDetail(LIVE_DETAIL_URL);
     assert.ok(detail.episodes.length > 0, 'series should have episodes');
 

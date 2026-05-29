@@ -1,6 +1,7 @@
 import test, { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { getSeriesDetail, getVideoInfo } from '../../src/wco/index.js';
+import { clearCookies, applyWcoEnvCookies } from '../../src/wco/curl-fetch.js';
 
 const LIVE_DETAIL_URL = 'https://www.wcoflix.tv/anime/classroom-of-the-elite/season=all&lang=dub';
 
@@ -23,8 +24,14 @@ function handleNetworkError(t: TestContext, err: unknown): void {
   throw err;
 }
 
+function resetWcoSession(): void {
+  clearCookies();
+  applyWcoEnvCookies();
+}
+
 test('live WCO classroom detail returns episodes', async (t) => {
   try {
+    resetWcoSession();
     const detail = await getSeriesDetail(LIVE_DETAIL_URL);
     assert.ok(detail.episodes.length > 0, 'expected at least one episode');
     assert.ok(detail.episodes[0].url.startsWith('http'), 'episode url should be absolute');
@@ -35,6 +42,7 @@ test('live WCO classroom detail returns episodes', async (t) => {
 
 test('live WCO classroom episode yields video info', async (t) => {
   try {
+    resetWcoSession();
     const detail = await getSeriesDetail(LIVE_DETAIL_URL);
     assert.ok(detail.episodes.length > 0, 'detail should expose episodes before video fetch');
     const info = await getVideoInfo(detail.episodes[0].url);

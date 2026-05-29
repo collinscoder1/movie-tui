@@ -159,6 +159,66 @@ function createLinkInfoBase(embedOrigin: string): string {
   return embedOrigin;
 }
 
+function extractGetvidlinkPath(html: string): string | null {
+  const linkMatch = html.match(/["']?\/inc\/embed\/getvidlink\.php[^"'\s>]+["']?/);
+  return linkMatch ? linkMatch[0].replace(/^['"]|['"]$/g, '') : null;
+}
+
+function buildVideoJsEmbedUrl(embedUrl: string): string {
+  const parsed = new URL(embedUrl);
+  if (parsed.pathname.endsWith('/index.php')) {
+    parsed.pathname = parsed.pathname.replace(/index\.php$/, 'video-js.php');
+    return parsed.toString();
+  }
+  if (parsed.pathname.includes('/inc/embed/') && !parsed.pathname.includes('video-js.php')) {
+    parsed.pathname = parsed.pathname.replace(/\/[^/]*$/, '/video-js.php');
+    return parsed.toString();
+  }
+  return embedUrl;
+}
+
+function filenameFromVParam(v: string): string {
+  const base = v.split('/').pop() ?? v;
+  return base.replace(/\.mp4$/i, '') || 'video';
+}
+
+async function fetchEmbedHtml(embedUrl: string, referer: string, fetchImpl?: typeof fetch): Promise<string> {
+  const response = await performFetch(embedUrl, {
+    headers: {
+      ...PAGE_HEADERS,
+      referer,
+      'sec-fetch-dest': 'iframe',
+      'sec-fetch-site': 'cross-site'
+    }
+  }, fetchImpl);
+  return response.text();
+}
+
+async function resolvePlayerEmbedHtml(
+  embedUrl: string,
+  episodeUrl: string,
+  fetchImpl?: typeof fetch
+): Promise<{ playerEmbedUrl: string; embedHtml: string; getvidlinkPath: string }> {
+  let playerEmbedUrl = embedUrl;
+  let embedHtml = await fetchEmbedHtml(embedUrl, episodeUrl, fetchImpl);
+  let getvidlinkPath = extractGetvidlinkPath(embedHtml);
+
+  if (!getvidlinkPath) {
+    const videoJsUrl = buildVideoJsEmbedUrl(embedUrl);
+    if (videoJsUrl !== embedUrl) {
+      playerEmbedUrl = videoJsUrl;
+      embedHtml = await fetchEmbedHtml(videoJsUrl, embedUrl, fetchImpl);
+      getvidlinkPath = extractGetvidlinkPath(embedHtml);
+    }
+  }
+
+  if (!getvidlinkPath) {
+    throw new Error('Unable to extract getvidlink path from embed page');
+  }
+
+  return { playerEmbedUrl, embedHtml, getvidlinkPath };
+}
+
 async function resolveCdnUrl(server: string, evid: string, embedUrl: string): Promise<string> {
   const url = `${server}/getvid?evid=${evid}&json`;
   const embedOrigin = new URL(embedUrl).origin;
@@ -215,36 +275,21 @@ export async function getVideoInfo(episodeUrl: string, options: WcoFetchOptions 
 
   const embedUrl = iframeMatch[1];
 
-  // Step 2: Fetch embed immediately
-  const embedResponse = await performFetch(embedUrl, {
-    headers: {
-      ...PAGE_HEADERS,
-      'referer': episodeUrl,
-      'sec-fetch-dest': 'iframe',
-      'sec-fetch-site': 'cross-site'
-    }
-  }, fetchImpl);
+  // Step 2: Fetch embed (index.php may show an announcement gate before video-js.php)
+  const { playerEmbedUrl, getvidlinkPath: rawLink } = await resolvePlayerEmbedHtml(embedUrl, episodeUrl, fetchImpl);
 
-  const embedHtml = await embedResponse.text();
-
-  // Step 3: Extract getvidlink from embed page
-  const linkMatch = embedHtml.match(/["']?\/inc\/embed\/getvidlink\.php[^"'\s>]+["']?/);
-  if (!linkMatch) {
-    throw new Error('Unable to extract getvidlink path from embed page');
-  }
-
-  const rawLink = linkMatch[0].replace(/^['"]|['"]$/g, '');
   const embedOrigin = options.embedUrl ?? DEFAULT_EMBED_URL;
   const linkInfoBase = createLinkInfoBase(embedOrigin);
   const linkInfoUrl = new URL(rawLink, linkInfoBase);
-  const fileName = linkInfoUrl.searchParams.get('v') ?? 'video';
+  const vParam = linkInfoUrl.searchParams.get('v') ?? 'video';
+  const fileName = filenameFromVParam(vParam);
 
   // Step 4: Fetch link info (Must be identical to a browser's AJAX request)
   const linkInfoResponse = await performFetch(linkInfoUrl.toString(), {
     headers: {
       ...BASE_HEADERS,
       'accept': 'application/json, text/javascript, */*; q=0.01',
-      'referer': embedUrl,
+      'referer': playerEmbedUrl,
       'x-requested-with': 'XMLHttpRequest',
       'sec-fetch-dest': 'empty',
       'sec-fetch-mode': 'cors',
@@ -259,15 +304,15 @@ export async function getVideoInfo(episodeUrl: string, options: WcoFetchOptions 
 
   // Step 5: Resolve actual CDN URLs
   const video: WcoVideoInfo = {
-    url: await resolveCdnUrl(linkInfo.server, linkInfo.enc, embedUrl),
+    url: await resolveCdnUrl(linkInfo.server, linkInfo.enc, playerEmbedUrl),
     filename: `${fileName}.mp4`
   };
 
   if (linkInfo.hd) {
-    video.hdUrl = await resolveCdnUrl(linkInfo.server, linkInfo.hd, embedUrl);
+    video.hdUrl = await resolveCdnUrl(linkInfo.server, linkInfo.hd, playerEmbedUrl);
   }
   if (linkInfo.fhd) {
-    video.fullHdUrl = await resolveCdnUrl(linkInfo.server, linkInfo.fhd, embedUrl);
+    video.fullHdUrl = await resolveCdnUrl(linkInfo.server, linkInfo.fhd, playerEmbedUrl);
   }
 
   return video;

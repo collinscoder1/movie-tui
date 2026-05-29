@@ -1,6 +1,7 @@
 import test, { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { getSeriesDetail, getVideoInfo, searchSeries } from '../../src/wco/index.js';
+import { clearCookies, applyWcoEnvCookies } from '../../src/wco/curl-fetch.js';
 
 const LIVE_BASE_URL = 'https://www.wcoflix.tv';
 const LIVE_DETAIL_URL = 'https://www.wcoflix.tv/anime/classroom-of-the-elite/season=all&lang=dub';
@@ -48,6 +49,8 @@ test('getSeriesDetail extracts metadata and episodes from live data', async (t) 
 
 test('getVideoInfo extracts video urls from live episode', async (t) => {
   try {
+    clearCookies();
+    applyWcoEnvCookies();
     const detail = await getSeriesDetail(LIVE_DETAIL_URL);
     assert.ok(detail.episodes.length > 0, 'detail should have episodes');
 
@@ -55,13 +58,6 @@ test('getVideoInfo extracts video urls from live episode', async (t) => {
     assert.ok(info.url.startsWith('http'), 'video url should be valid http');
     assert.ok(info.filename.endsWith('.mp4'), 'filename should end with .mp4');
   } catch (err) {
-    // Video extraction may fail due to embed page changes
-    // Mark as skipped rather than failed
-    const message = (err as Error)?.message ?? '';
-    if (message.includes('Unable to locate embed') || message.includes('Unable to extract')) {
-      t.skip(`Video extraction not available: ${message}`);
-      return;
-    }
     handleNetworkError(t, err);
   }
 });

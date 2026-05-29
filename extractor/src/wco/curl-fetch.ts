@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { readFileSync } from 'node:fs';
 
 // Store cookies per domain
 const cookieJar = new Map<string, string>();
@@ -210,7 +211,12 @@ async function curlFetchInternal(url: string, init?: RequestInit): Promise<CurlR
 
     curl.on('close', (code) => {
       if (code !== 0) {
-        reject(new Error(`curl failed with code ${code}: ${stderr}`));
+        const cookieHint = code === 43 && storedCookies.includes('\n')
+          ? ' (Cookie value contains newlines — use a single-line WCO_CF_CLEARANCE or WCO_COOKIE_FILE)'
+          : code === 43
+            ? ' (often a malformed Cookie header — paste cf_clearance on one line or use WCO_COOKIE_FILE)'
+            : '';
+        reject(new Error(`curl failed with code ${code}: ${stderr}${cookieHint}`));
         return;
       }
 
@@ -318,4 +324,51 @@ export function getCookieJar(): ReadonlyMap<string, string> {
 // Clear cookies (useful for testing)
 export function clearCookies(): void {
   cookieJar.clear();
+}
+
+/** Seed the curl cookie jar (e.g. from WCO_COOKIE or WCO_CF_CLEARANCE in live tests). */
+export function setCookieForBaseDomain(cookieHeader: string, ...baseDomains: string[]): void {
+  for (const domain of baseDomains) {
+    cookieJar.set(domain, cookieHeader);
+  }
+}
+
+function normalizeCfClearance(value: string): string {
+  // Shell line-wraps often inject spaces/newlines into long tokens.
+  return value.replace(/\s+/g, '');
+}
+
+function readCookieFromFile(): string | null {
+  const path = process.env.WCO_COOKIE_FILE?.trim();
+  if (!path) {
+    return null;
+  }
+  try {
+    const raw = readFileSync(path, 'utf8').trim();
+    if (!raw) {
+      return null;
+    }
+    if (raw.startsWith('cf_clearance=')) {
+      const token = raw.slice('cf_clearance='.length);
+      return `cf_clearance=${normalizeCfClearance(token)}`;
+    }
+    if (raw.includes('=')) {
+      return raw.replace(/[\r\n]+/g, ' ').trim();
+    }
+    return `cf_clearance=${normalizeCfClearance(raw)}`;
+  } catch {
+    throw new Error(`WCO_COOKIE_FILE not readable: ${path}`);
+  }
+}
+
+export function applyWcoEnvCookies(): void {
+  const fromFile = readCookieFromFile();
+  const cookie = process.env.WCO_COOKIE?.replace(/[\r\n]+/g, ' ').trim();
+  const clearance = process.env.WCO_CF_CLEARANCE
+    ? normalizeCfClearance(process.env.WCO_CF_CLEARANCE)
+    : null;
+  const value = fromFile || cookie || (clearance ? `cf_clearance=${clearance}` : null);
+  if (value) {
+    setCookieForBaseDomain(value, 'wcoflix.tv', 'wcostream.com');
+  }
 }

@@ -2,6 +2,7 @@
 
 # compiled output
 /dist
+extractor/dist/
 /tmp
 /out-tsc
 
@@ -79,6 +80,10 @@ jspm_packages/
 
 # dotenv environment variables file
 .env
+
+# Local WCO Cloudflare cookie for live tests (never commit)
+wco.cf_clearance
+extractor/wco.cf_clearance
 
 # next.js build output
 .next
