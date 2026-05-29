@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { getDownloadLinks, getSubjectDetail } from '../../src/moviebox/index.js';
 const DETAIL_PATHS = [
     'the-chi-0OZDg6KP353',
-    'the-box-GD9RExkp9Q8',
+    'the-box-yDTC7jwzVB5',
     'stranger-things-wsymkZvcaU5'
 ];
 async function fetchFirstChunk(url) {

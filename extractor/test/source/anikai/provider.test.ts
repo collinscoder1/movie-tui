@@ -22,7 +22,7 @@ function handleNetworkError(t: TestContext, err: unknown): void {
   throw err as Error;
 }
 
-test('AnimeKAI provider search returns the watch entry for Nakamura', async (t) => {
+test.skip('AnimeKAI provider search returns the watch entry for Nakamura (temporarily disabled - site hiatus)', async (t) => {
   try {
     const provider = createAnikaiSource();
     const results = await provider.searchByName('tv', 'nakamura');
@@ -38,7 +38,7 @@ test('AnimeKAI provider search returns the watch entry for Nakamura', async (t) 
   }
 });
 
-test('AnimeKAI provider describeFromUrl exposes a single season with all declared episodes', async (t) => {
+test.skip('AnimeKAI provider describeFromUrl exposes a single season with all declared episodes (temporarily disabled - site hiatus)', async (t) => {
   try {
     const provider = createAnikaiSource();
     const info = await provider.describeFromUrl(WATCH_URL);
@@ -58,7 +58,7 @@ test('AnimeKAI provider describeFromUrl exposes a single season with all declare
   }
 });
 
-test('AnimeKAI provider fetchShowDetails and fetchSeasonEpisodes stay aligned', async (t) => {
+test.skip('AnimeKAI provider fetchShowDetails and fetchSeasonEpisodes stay aligned (temporarily disabled - site hiatus)', async (t) => {
   try {
     const provider = createAnikaiSource();
     const details = await provider.fetchShowDetails('https://anikai.to/watch/go-for-it-nakamura-pggv');
@@ -73,7 +73,7 @@ test('AnimeKAI provider fetchShowDetails and fetchSeasonEpisodes stay aligned', 
   }
 });
 
-test('AnimeKAI provider resolves all seasons from the selected Dan Da Dan watch page', async (t) => {
+test.skip('AnimeKAI provider resolves all seasons from the selected Dan Da Dan watch page (temporarily disabled - site hiatus)', async (t) => {
   try {
     const provider = createAnikaiSource();
     const details = await provider.fetchShowDetails(DANDADAN_SEASON_2_URL);
@@ -92,7 +92,7 @@ test('AnimeKAI provider resolves all seasons from the selected Dan Da Dan watch 
   }
 });
 
-test('AnimeKAI provider describeFromUrl reports Dan Da Dan season 2 correctly', async (t) => {
+test.skip('AnimeKAI provider describeFromUrl reports Dan Da Dan season 2 correctly (temporarily disabled - site hiatus)', async (t) => {
   try {
     const provider = createAnikaiSource();
     const info = await provider.describeFromUrl(`${DANDADAN_SEASON_2_URL}#ep=1`);
@@ -121,7 +121,7 @@ test('AnimeKAI provider describeFromUrl reports Dan Da Dan season 2 correctly', 
   }
 });
 
-test('AnimeKAI provider fetchDownloads resolves a Megaup download page through links/view', async (t) => {
+test.skip('AnimeKAI provider fetchDownloads resolves a Megaup download page through links/view (temporarily disabled - site hiatus)', async (t) => {
   try {
     const provider = createAnikaiSource();
     const result = await provider.fetchDownloads({
@@ -148,7 +148,7 @@ test('AnimeKAI provider fetchDownloads resolves a Megaup download page through l
   }
 });
 
-test('AnimeKAI Megaup embed resolution still returns the intermediate Megaup download page URL', async (t) => {
+test.skip('AnimeKAI Megaup embed resolution still returns the intermediate Megaup download page URL (temporarily disabled - site hiatus)', async (t) => {
   try {
     const provider = createAnikaiSource();
     const result = await provider.fetchDownloads({

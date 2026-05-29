@@ -36,7 +36,7 @@ async function fetchFirstChunk(url: string): Promise<Uint8Array> {
   return chunk;
 }
 
-test('AnimeKAI real final download URLs can fetch video bytes', async (t) => {
+test.skip('AnimeKAI real final download URLs can fetch video bytes (temporarily disabled - site hiatus)', async (t) => {
   try {
     const provider = createAnikaiSource();
     const result = await provider.fetchDownloads({

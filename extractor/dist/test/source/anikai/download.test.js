@@ -28,7 +28,7 @@ async function fetchFirstChunk(url) {
     assert.ok(chunk.length > 0, 'Expected at least one byte from AnimeKAI final download URL');
     return chunk;
 }
-test('AnimeKAI real final download URLs can fetch video bytes', async (t) => {
+test.skip('AnimeKAI real final download URLs can fetch video bytes (temporarily disabled - site hiatus)', async (t) => {
     try {
         const provider = createAnikaiSource();
         const result = await provider.fetchDownloads({
