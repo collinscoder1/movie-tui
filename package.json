@@ -1,9 +1,19 @@
 {
   "name": "movie_extractor",
   "version": "1.0.0",
-  "main": "index.ts",
+  "private": true,
+  "workspaces": [
+    "extractor",
+    "moviebox-api",
+    "extension"
+  ],
   "scripts": {
-    "test": "test.ts"
+    "test": "npm run test --workspace extractor",
+    "test:extractor": "npm run test --workspace extractor",
+    "test:moviebox-api": "npm run test --workspace moviebox-api",
+    "build": "npm run build --workspace extractor",
+    "tui": "npm run tui --workspace extractor",
+    "config": "npm run config --workspace extractor"
   },
   "author": "",
   "license": "ISC",
